@@ -1,15 +1,13 @@
 import tkinter as tk
 from tkinter import filedialog
-
-# need to read exif and xmp for matadeta?
-
-
-SUPPORTED_FILE_TYPES = {"png", "jpg", "mpeg", "mpg", "avi"}
+from Main import SUPPORTED_FILE_TYPES
 
 
 class App(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
+
+        self.used_file_types = []
 
         self.geometry("900x640")
         self.title("CyberChaperone")
@@ -30,6 +28,20 @@ class App(tk.Tk):
         )
         self.textbox_output_dir = tk.Entry(self, width=50, bg="light yellow")
 
+        # filetypes Check buttons -------------------------------------------------
+        label_row = 0
+        self.Checkbutton_list = []
+        for filetype in SUPPORTED_FILE_TYPES:
+            self.Checkbutton_list.append(
+                tk.Checkbutton(
+                    text=filetype,
+                    command=lambda filetype=filetype: self.AddRemoveFileType(filetype),
+                )
+            )
+
+        for i in range(len(self.Checkbutton_list)):
+            self.Checkbutton_list[i].grid(column=6, row=i, sticky="w")
+
         # other ----------------------------------------------------------------
         self.button_exit = tk.Button(self, text="Exit", command=exit)
 
@@ -42,9 +54,19 @@ class App(tk.Tk):
         self.button_exit.grid(column=1, row=3)
         self.mainloop()
 
+    def AddRemoveFileType(self, fileType):
+        if fileType not in SUPPORTED_FILE_TYPES:
+            return
+
+        if fileType in self.used_file_types:
+            self.used_file_types.remove(fileType)
+        else:
+            self.used_file_types.append(fileType)
+        print(self.used_file_types)
+
     def BrowseFiles(self, textbox):
         filename = filedialog.askdirectory(
-            initialdir="/",
+            initial_dir="/",
             title="Select a folder",
         )
         # Change label contents
