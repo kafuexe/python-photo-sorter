@@ -1,8 +1,6 @@
 from PIL import Image
 import os
-
-
-SUPPORTED_FILE_TYPES = {"png", "jpg", "mpeg", "mpg", "avi"}
+from Main import SUPPORTED_FILE_TYPES
 
 
 def get_date_taken(path):
