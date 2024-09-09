@@ -1,6 +1,11 @@
 import tkinter as tk
 from tkinter import filedialog
 
+# need to read exif and xmp for matadeta?
+
+
+SUPPORTED_FILE_TYPES = {"png", "jpg", "mpeg", "mpg", "avi"}
+
 
 class App(tk.Tk):
     def __init__(self):
