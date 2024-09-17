@@ -1,14 +1,15 @@
 import tkinter as tk
 from tkinter import filedialog
-from Main import SUPPORTED_FILE_TYPES
+
+SUPPORTED_FILE_TYPES = {}
 
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, support_file_types):
         tk.Tk.__init__(self)
 
         self.used_file_types = []
-
+        SUPPORTED_FILE_TYPES = support_file_types
         self.geometry("900x640")
         self.title("CyberChaperone")
 

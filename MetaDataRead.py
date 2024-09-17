@@ -1,36 +1,22 @@
 from PIL import Image
 import os
-from Main import SUPPORTED_FILE_TYPES
-
-
-def get_date_taken(path):
-    exif = Image.open(path).getexif()
-    if not exif:
-        raise Exception("Image {0} does not have EXIF data.".format(path))
-    return exif[36867]
-
-
 from datetime import datetime
-from PIL import Image
-
-# import time
-
-from datetime import datetime
-from PIL import Image
-
-# import time
 
 
-def imgDate(fn):
+SUPPORTED_FILE_TYPES = {"png", "jpg", "mpeg", "mpg", "avi", "mov", "mp4"}
+TIME_FORMAT = "%Y:%m:%d  %H:%M:%S.%f"
+
+
+def imgDateExif(fn):
     "returns the image date from image (if available)\nfrom Orthallelous"
-    std_fmt = "%Y:%m:%d  %H:%M:%S.%f"
+
     # for subsecond prec, see doi.org/10.3189/2013JoG12J126 , sect. 2.2, 2.3
     tags = [
         (36867, 37521),  # (DateTimeOriginal, SubsecTimeOriginal)
         (36868, 37522),  # (DateTimeDigitized, SubsecTimeDigitized)
         (306, 37520),
     ]  # (DateTime, SubsecTime)
-    exif = Image.open(fn)._getexif()
+    exif = Image.open(fn).getexif()
 
     for t in tags:
         dat = exif.get(t[0])
@@ -45,23 +31,55 @@ def imgDate(fn):
     if dat == None:
         return None
     full = "{}.{}".format(dat, sub)
-    T = datetime.strptime(full, std_fmt)
+    T = datetime.strptime(full, TIME_FORMAT)
     # T = time.mktime(time.strptime(dat, '%Y:%m:%d %H:%M:%S')) + float('0.%s' % sub)
     return T
 
 
-path = r"D:\.backups\google photos\22022024\Google Photos\Photos from 2024"  # test
+import subprocess
 
-i = 0
-folder = os.path.join(path, "")
-for filename in os.listdir(folder):
-    try:
-        for ftype in SUPPORTED_FILE_TYPES:
-            if filename.endswith(ftype):
 
-                img_path = os.path.join(folder, filename)
-                data = imgDate(img_path)
-                print(f"{filename} {data}")
-                break
-    except Exception as e:
-        print(e)
+def vidDateExif(path):
+    EXIFTOOL_DATE_TAG_VIDEOS = "Create Date"
+
+    exif_tool_path = os.path.join(
+        os.path.abspath(os.getcwd()), "exiftool\\exiftool64.exe"
+    )
+
+    process = subprocess.Popen(
+        [exif_tool_path, path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+    )
+    out, err = process.communicate()
+
+    lines = out.decode("utf-8").split("\n")
+    for l in lines:
+        if EXIFTOOL_DATE_TAG_VIDEOS in str(l):
+            datetime_str = str(l.split(":")).strip()
+            dt = datetime.strptime(datetime_str, TIME_FORMAT)
+            return dt
+
+
+if __name__ == "__main__":
+    path = r"D:\\.backups\\phone backups\\pixel7ofek20230126\DCIM\\Camera\\"  # test
+
+    i = 0
+    folder = os.path.join(path, "")
+    # print(os.listdir(folder))
+    for filename in os.listdir(folder):
+
+        data = None
+        if filename.endswith(tuple(SUPPORTED_FILE_TYPES)):
+            img_path = os.path.join(folder, filename)
+            if os.path.isfile(img_path):
+
+                match filename.split(".")[-1]:
+                    # case "jpg" | "png" | "wepg":
+                    #     data = imgDateExif(img_path)
+                    case "mov" | "avi" | "mp4":
+                        data = vidDateExif(img_path)
+                        print(f"{filename} {data}")
+                    case _:
+                        data = None
