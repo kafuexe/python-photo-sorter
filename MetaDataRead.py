@@ -5,7 +5,7 @@ import subprocess
 import time
 
 
-class MataDataRead:
+class MetaDataReader:
     def __init__(self, SUPPORTED_FILE_TYPES):
         self.supported_file_types = SUPPORTED_FILE_TYPES
 

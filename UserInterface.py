@@ -1,13 +1,17 @@
 import tkinter as tk
 from tkinter import filedialog
+from MetaDataRead import MetaDataReader
 
 
 class App(tk.Tk):
     def __init__(self, support_file_types):
         tk.Tk.__init__(self)
+        global SUPPORTED_FILE_TYPES
+        SUPPORTED_FILE_TYPES = support_file_types
+        self.mtdr = MetaDataReader(SUPPORTED_FILE_TYPES)
 
         self.used_file_types = []
-        SUPPORTED_FILE_TYPES = support_file_types
+
         self.geometry("900x640")
         self.title("CyberChaperone")
 
@@ -30,16 +34,19 @@ class App(tk.Tk):
         # filetypes Check buttons -------------------------------------------------
         label_row = 0
         self.Checkbutton_list = []
-        for filetype in SUPPORTED_FILE_TYPES:
-            self.Checkbutton_list.append(
-                tk.Checkbutton(
-                    text=filetype,
-                    command=lambda filetype=filetype: self.AddRemoveFileType(filetype),
-                )
+        for pos in range(len(SUPPORTED_FILE_TYPES)):
+            filetype = SUPPORTED_FILE_TYPES[pos]
+            x = tk.Checkbutton(
+                text=filetype,
+                command=lambda filetype=filetype: self.AddRemoveFileType(filetype),
             )
 
+            self.Checkbutton_list.append(x)
+
+            x.grid(column=6, row=pos, sticky="w")
+
         for i in range(len(self.Checkbutton_list)):
-            self.Checkbutton_list[i].grid(column=6, row=i, sticky="w")
+            pass
 
         # other ----------------------------------------------------------------
         self.button_exit = tk.Button(self, text="Exit", command=exit)
