@@ -123,6 +123,8 @@ class App(tk.Tk):
             if filename.endswith(tuple(self.used_file_types)):
                 img_path = os.path.join(folder, filename)
                 if os.path.isfile(img_path):
+
+                    ################################
                     match filename.split(".")[-1]:
                         case "jpg" | "png" | "wepg":
                             data = self.mtdr.imgDateExif(img_path)
@@ -130,7 +132,9 @@ class App(tk.Tk):
                             data = self.mtdr.DateExifTool(img_path)
                         case _:
                             data = None
+
             print(f"{filename} ||| {data}")
+            ################################
 
             ## progress bar updating
             files_compleated += 1

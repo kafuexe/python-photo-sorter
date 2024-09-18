@@ -1,0 +1,17 @@
+
+add source and destination to gui for clarity
+
+move and copy buttons to gui for different functionality
+
+add the ability to character formatting of destination name
+
+add the ability to choose what to do with unknown files
+
+add saving of settings when closing\restarting app
+
+add and test support for file types
+
+*wishlist:
+*end message box copied x files, and x files unknown date
+*undo button (log every file moved, form where and to where) even after closing app.
+*
