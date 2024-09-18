@@ -35,7 +35,7 @@ class MetaDataReader:
             return None
         full = "{}.{}".format(dat, sub)
 
-        # T = time.mktime(time.strptime(dat, '%Y:%m:%d %H:%M:%S')) + float('0.%s' % sub)
+        # T = time.mktime(time.strptime(dat, "%Y:%m:%d %H:%M:%S")) + float("0.%s" % sub)
         return full
 
     def DateExifTool(self, path):
@@ -121,6 +121,8 @@ class MetaDataReader:
 
 
 if __name__ == "__main__":
+    # D:\.backups\phone backups\pixel7ofek20230126\DCIM\Camera\
     path = r"D:\\.backups\\phone backups\\pixel7ofek20230126\DCIM\\Camera\\"
-    x = MataDataRead()
+    test_SUPPORTED_FILE_TYPES = ["jpg", "png", "wepg", "mov", "avi", "mp4"]
+    x = MetaDataReader(test_SUPPORTED_FILE_TYPES)
     x.maintest(path)
