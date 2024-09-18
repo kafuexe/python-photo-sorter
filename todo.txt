@@ -1,5 +1,8 @@
 
-add source and destination to gui for clarity
+
+
+todo:
+
 
 move and copy buttons to gui for different functionality
 
@@ -15,3 +18,6 @@ add and test support for file types
 *end message box copied x files, and x files unknown date
 *undo button (log every file moved, form where and to where) even after closing app.
 *
+
+done:
+add source and destination to gui for clarity

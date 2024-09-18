@@ -26,7 +26,7 @@ class App(tk.Tk):
             command=lambda: self.BrowseFiles(self.textbox_input_dir),
         )
         self.textbox_input_dir = tk.Entry(self, width=50, bg="light yellow")
-
+        self.label_input_dir = tk.Label(self, text="Input Directory")
         # output section --------------------------------------------------------
         self.button_change_output_dir = tk.Button(
             self,
@@ -34,6 +34,7 @@ class App(tk.Tk):
             command=lambda: self.BrowseFiles(self.textbox_output_dir),
         )
         self.textbox_output_dir = tk.Entry(self, width=50, bg="light yellow")
+        self.label_output_dir = tk.Label(self, text="Output Directory")
 
         # filetypes Check buttons -------------------------------------------------
         label_row = 0
@@ -58,9 +59,11 @@ class App(tk.Tk):
 
         self.textbox_input_dir.grid(row=1, column=1)
         self.button_change_input_dir.grid(row=1, column=2)
+        self.label_input_dir.grid(row=1, column=0)
 
         self.textbox_output_dir.grid(row=2, column=1)
         self.button_change_output_dir.grid(row=2, column=2)
+        self.label_output_dir.grid(row=2, column=0)
 
         self.button_move.grid(column=1, row=3)
         self.button_exit.grid(column=1, row=4)
