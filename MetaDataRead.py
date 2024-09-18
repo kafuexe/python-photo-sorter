@@ -1,7 +1,7 @@
 from PIL import Image
 import os
 from datetime import datetime
-
+import subprocess
 
 SUPPORTED_FILE_TYPES = {"png", "jpg", "mpeg", "mpg", "avi", "mov", "mp4"}
 
@@ -30,14 +30,10 @@ def imgDateExif(fn):
 
     if dat == None:
         return None
-    print(dat)
     full = "{}.{}".format(dat, sub)
 
     # T = time.mktime(time.strptime(dat, '%Y:%m:%d %H:%M:%S')) + float('0.%s' % sub)
     return full
-
-
-import subprocess
 
 
 def DateExifTool(path):
@@ -65,10 +61,10 @@ def DateExifTool(path):
             return datetime_str
 
 
+## ----------------------------------------------------------------
+##testing functions
 def maintest(path):
     # test
-
-    i = 0
     folder = os.path.join(path, "")
     # print(os.listdir(folder))
     for filename in os.listdir(folder):
@@ -92,11 +88,40 @@ def maintest(path):
 import time
 
 
-def timetest(path):
+def timetest(path, usege):
+    """conclusion of time testing: DateExifTool is VERY slow,
+    but it the only thing that works on video files
+    if possible, use imgDateExif instead."""
     start = time.time()
-    print("hello")
+    folder = os.path.join(path, "")
+    for filename in os.listdir(folder):
+        data = None
+        if filename.endswith("jpg"):
+            img_path = os.path.join(folder, filename)
+            if os.path.isfile(img_path):
+                match usege:
+                    case 1:
+                        data = imgDateExif(img_path)
+                    case 2:
+                        data = DateExifTool(img_path)
+
     end = time.time()
+    return f"case{usege} Time: {end - start}"
+
+    # print("imgDateExif --------")
+    # print(timetest(path, 1))
+    # print(timetest(path, 1))
+    # print(timetest(path, 1))
+    # print(timetest(path, 1))
+    # print("imgDateExif --------")
+    # print("DateExifTool --------")
+    # print(timetest(path, 2))
+    # print(timetest(path, 2))
+    # print(timetest(path, 2))
+    # print(timetest(path, 2))
+    # print("DateExifTool --------")
 
 
 if __name__ == "__main__":
     path = r"D:\\.backups\\phone backups\\pixel7ofek20230126\DCIM\\Camera\\"
+    maintest(path)
