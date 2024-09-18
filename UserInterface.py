@@ -3,7 +3,8 @@ from tkinter import filedialog
 import os
 from tkinter.ttk import Progressbar
 import time, threading
-
+from datetime import datetime
+import datetime as Dt
 from MetaDataRead import MetaDataReader
 
 
@@ -136,7 +137,18 @@ class App(tk.Tk):
                         case _:
                             data = None
 
+                    if data is None:
+                        print("data IS NONE")
+                        continue
+
+                    ## this is NOT CHANGEABLE!!! THIS IS FORMAT OF RECEIVED DATA
+                    ## AND NOT THE FORMAT OF THE FILENAMES!. dont change plz
+                    tf = "%Y:%m:%d %H:%M:%S"
+                    # 19 is the expected length of a date.
+                    pars_data = datetime.strptime(data[:19], tf)
+
                     print(f"{filename} ||| {data}")
+                    print(pars_data)
                     ################################
 
             ## progress bar updating
