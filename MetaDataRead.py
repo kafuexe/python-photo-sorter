@@ -4,10 +4,10 @@ from datetime import datetime
 
 
 SUPPORTED_FILE_TYPES = {"png", "jpg", "mpeg", "mpg", "avi", "mov", "mp4"}
-TIME_FORMAT = "%Y:%m:%d  %H:%M:%S.%f"
 
 
 def imgDateExif(fn):
+    TIME_FORMAT = "%Y/%m/%d %H:%M:%S.%f"
     "returns the image date from image (if available)\nfrom Orthallelous"
 
     # for subsecond prec, see doi.org/10.3189/2013JoG12J126 , sect. 2.2, 2.3
@@ -30,16 +30,18 @@ def imgDateExif(fn):
 
     if dat == None:
         return None
+    print(dat)
     full = "{}.{}".format(dat, sub)
-    T = datetime.strptime(full, TIME_FORMAT)
+
     # T = time.mktime(time.strptime(dat, '%Y:%m:%d %H:%M:%S')) + float('0.%s' % sub)
-    return T
+    return full
 
 
 import subprocess
 
 
-def vidDateExif(path):
+def DateExifTool(path):
+    TIME_FORMAT = "%d/%m/%Y %H:%M:%S.%f"
     EXIFTOOL_DATE_TAG_VIDEOS = "Create Date"
 
     exif_tool_path = os.path.join(
@@ -57,13 +59,14 @@ def vidDateExif(path):
     lines = out.decode("utf-8").split("\n")
     for l in lines:
         if EXIFTOOL_DATE_TAG_VIDEOS in str(l):
-            datetime_str = str(l.split(":")).strip()
-            dt = datetime.strptime(datetime_str, TIME_FORMAT)
-            return dt
+            datetime_str = str(l.split(" :")[1].strip())
+
+            # dt = datetime.strptime(datetime_str, TIME_FORMAT)
+            return datetime_str
 
 
-if __name__ == "__main__":
-    path = r"D:\\.backups\\phone backups\\pixel7ofek20230126\DCIM\\Camera\\"  # test
+def maintest(path):
+    # test
 
     i = 0
     folder = os.path.join(path, "")
@@ -76,10 +79,24 @@ if __name__ == "__main__":
             if os.path.isfile(img_path):
 
                 match filename.split(".")[-1]:
-                    # case "jpg" | "png" | "wepg":
-                    #     data = imgDateExif(img_path)
+                    case "jpg" | "png" | "wepg":
+                        data = imgDateExif(img_path)
                     case "mov" | "avi" | "mp4":
-                        data = vidDateExif(img_path)
-                        print(f"{filename} {data}")
+                        data = DateExifTool(img_path)
+
                     case _:
                         data = None
+        print(f"{filename} ||| {data}")
+
+
+import time
+
+
+def timetest(path):
+    start = time.time()
+    print("hello")
+    end = time.time()
+
+
+if __name__ == "__main__":
+    path = r"D:\\.backups\\phone backups\\pixel7ofek20230126\DCIM\\Camera\\"
