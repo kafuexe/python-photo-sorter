@@ -1,6 +1,6 @@
 # need to read exif and xmp for matadeta
 # c:\RecentlyUploadedPhotos\YYYYMMDD
-
+SUPPORTED_FILE_TYPES = {"jpg", "png", "wepg", "mov", "avi", "mp4"}
 from MetaDataRead import SUPPORTED_FILE_TYPES
 from UserInterface import App
 

@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog
 
-SUPPORTED_FILE_TYPES = {}
-
 
 class App(tk.Tk):
     def __init__(self, support_file_types):
@@ -76,4 +74,5 @@ class App(tk.Tk):
         textbox.insert(0, filename)
 
 
-x = App()
+if __name__ == "__main__":
+    pass
