@@ -43,7 +43,7 @@ class App(tk.Tk):
 
             self.Checkbutton_list.append(x)
 
-            x.grid(column=6, row=pos, sticky="w")
+            x.grid(column=7, row=pos, sticky="w")
 
         for i in range(len(self.Checkbutton_list)):
             pass
@@ -72,7 +72,7 @@ class App(tk.Tk):
 
     def BrowseFiles(self, textbox):
         filename = filedialog.askdirectory(
-            initial_dir="/",
+            initialdir="/",
             title="Select a folder",
         )
         # Change label contents
