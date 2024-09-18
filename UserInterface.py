@@ -133,8 +133,8 @@ class App(tk.Tk):
                         case _:
                             data = None
 
-            print(f"{filename} ||| {data}")
-            ################################
+                    print(f"{filename} ||| {data}")
+                    ################################
 
             ## progress bar updating
             files_compleated += 1
