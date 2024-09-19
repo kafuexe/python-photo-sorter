@@ -6,7 +6,7 @@ import time, threading
 from datetime import datetime
 import datetime as Dt
 from MetaDataRead import MetaDataReader
-from configparser import ConfigParser
+import configparser
 
 
 class App(tk.Tk):
@@ -15,25 +15,32 @@ class App(tk.Tk):
         global SUPPORTED_FILE_TYPES
         SUPPORTED_FILE_TYPES = support_file_types
         self.mtdr = MetaDataReader(SUPPORTED_FILE_TYPES)
-        self.config = ConfigParser()
+        self.config = configparser.ConfigParser()
 
-        if not os.path.exists(r"config.ini"):
-            self.config.read("config.ini")
+        thisfolder = os.path.dirname(os.path.abspath(__file__))
+        self.initfile = os.path.join(thisfolder, "config.ini")
+
+        create_new = not os.path.exists(self.initfile)
+
+        self.config.read(self.initfile)
+        if create_new:
             self.config.add_section("main")
             print("added MAIN SECTION")
             self.config.set("main", "used_file_types", "")
             self.config.set("main", "textbox_input_dir", "")
             self.config.set("main", "textbox_output_dir", "")
-            self.config.write(open("config.ini", "w"))
+            self.config.write(open(self.initfile, "w"))
 
-        self.geometry("900x640")
-        self.title("CyberChaperone")
+        self.geometry("640x640")
+        self.title("File Sorter")
 
         # input section ----------------------------------------------------------
         self.button_change_input_dir = tk.Button(
             self,
             text="Browse Files",
-            command=lambda: self.BrowseFiles(self.textbox_input_dir),
+            command=lambda: self.BrowseFiles(
+                self.textbox_input_dir, "textbox_input_dir"
+            ),
         )
         self.textbox_input_dir = tk.Entry(self, width=50, bg="light yellow")
         self.label_input_dir = tk.Label(self, text="Input Directory")
@@ -41,7 +48,9 @@ class App(tk.Tk):
         self.button_change_output_dir = tk.Button(
             self,
             text="Browse Files",
-            command=lambda: self.BrowseFiles(self.textbox_output_dir),
+            command=lambda: self.BrowseFiles(
+                self.textbox_output_dir, "textbox_output_dir"
+            ),
         )
         self.textbox_output_dir = tk.Entry(self, width=50, bg="light yellow")
         self.label_output_dir = tk.Label(self, text="Output Directory")
@@ -80,20 +89,30 @@ class App(tk.Tk):
 
         # loading last saved settings ------------------------------------------------
 
-        x = self.config.get("main", "used_file_types")
-        x = [n.strip() for n in x]
+        x = self.config["main"]["used_file_types"]
+        x = [n.strip() for n in x[1:-1].replace("'", "").split(",")]
+        print(x)
         self.used_file_types = x
         for x in self.Checkbutton_list:
-            if filetype in self.used_file_types:
+            if x.cget("text") in self.used_file_types:
                 x.select()
 
+        y = self.config["main"]["textbox_input_dir"]
+        print(y)
         self.textbox_input_dir.delete(0, "end")
-        self.textbox_input_dir.insert(0, self.config.get("main", "textbox_input_dir"))
+        self.textbox_input_dir.insert(0, y)
 
+        y = self.config["main"]["textbox_output_dir"]
+        print(y)
         self.textbox_output_dir.delete(0, "end")
-        self.textbox_output_dir.insert(0, self.config.get("main", "textbox_output_dir"))
+        self.textbox_output_dir.insert(0, y)
 
         self.mainloop()
+
+    ##----------------------------------------------------------------
+    def write_to_config(self):
+        with open(self.initfile, "w") as configfile:  # save
+            self.config.write(configfile)
 
     def AddRemoveFileType(self, fileType):
         if fileType not in SUPPORTED_FILE_TYPES:
@@ -104,9 +123,10 @@ class App(tk.Tk):
         else:
             self.used_file_types.append(fileType)
         print(self.used_file_types)
-        self.config.set("main", "used_file_types", f"{self.used_file_types}")
+        self.config["main"]["used_file_types"] = f"{self.used_file_types}"
+        self.write_to_config()
 
-    def BrowseFiles(self, textbox):
+    def BrowseFiles(self, textbox, name):
         filename = filedialog.askdirectory(
             # initialdir="/",
             initialdir="D:\\.backups\\phone backups\\pixel7ofek20230126\\DCIM\\Camera\\",
@@ -116,7 +136,9 @@ class App(tk.Tk):
         print(f"Selected {filename} as input directory")
         textbox.delete(0, "end")
         textbox.insert(0, filename)
-        self.config.set("main", f"{textbox=}".split("=")[0], filename)
+
+        self.config["main"][name] = filename
+        self.write_to_config()
 
     def throw_error_message(self, message):
         tk.messagebox.showerror(title="Error", message=message)
