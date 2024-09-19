@@ -6,6 +6,7 @@ import time, threading
 from datetime import datetime
 import datetime as Dt
 from MetaDataRead import MetaDataReader
+from configparser import ConfigParser
 
 
 class App(tk.Tk):
@@ -14,8 +15,16 @@ class App(tk.Tk):
         global SUPPORTED_FILE_TYPES
         SUPPORTED_FILE_TYPES = support_file_types
         self.mtdr = MetaDataReader(SUPPORTED_FILE_TYPES)
+        self.config = ConfigParser()
 
-        self.used_file_types = []
+        if not os.path.exists(r"config.ini"):
+            self.config.read("config.ini")
+            self.config.add_section("main")
+            print("added MAIN SECTION")
+            self.config.set("main", "used_file_types", "")
+            self.config.set("main", "textbox_input_dir", "")
+            self.config.set("main", "textbox_output_dir", "")
+            self.config.write(open("config.ini", "w"))
 
         self.geometry("900x640")
         self.title("CyberChaperone")
@@ -38,17 +47,16 @@ class App(tk.Tk):
         self.label_output_dir = tk.Label(self, text="Output Directory")
 
         # filetypes Check buttons -------------------------------------------------
-        label_row = 0
         self.Checkbutton_list = []
         for pos in range(len(SUPPORTED_FILE_TYPES)):
             filetype = SUPPORTED_FILE_TYPES[pos]
+
             x = tk.Checkbutton(
                 text=filetype,
                 command=lambda filetype=filetype: self.AddRemoveFileType(filetype),
             )
 
             self.Checkbutton_list.append(x)
-
             x.grid(column=7, row=pos, sticky="w")
 
         for i in range(len(self.Checkbutton_list)):
@@ -58,6 +66,7 @@ class App(tk.Tk):
         self.button_exit = tk.Button(self, text="Exit", command=exit)
         self.button_move = tk.Button(self, text="Move", command=self.move)
 
+        # setting up the grid ------------------------------------------------------
         self.textbox_input_dir.grid(row=1, column=1)
         self.button_change_input_dir.grid(row=1, column=2)
         self.label_input_dir.grid(row=1, column=0)
@@ -68,6 +77,22 @@ class App(tk.Tk):
 
         self.button_move.grid(column=1, row=3)
         self.button_exit.grid(column=1, row=4)
+
+        # loading last saved settings ------------------------------------------------
+
+        x = self.config.get("main", "used_file_types")
+        x = [n.strip() for n in x]
+        self.used_file_types = x
+        for x in self.Checkbutton_list:
+            if filetype in self.used_file_types:
+                x.select()
+
+        self.textbox_input_dir.delete(0, "end")
+        self.textbox_input_dir.insert(0, self.config.get("main", "textbox_input_dir"))
+
+        self.textbox_output_dir.delete(0, "end")
+        self.textbox_output_dir.insert(0, self.config.get("main", "textbox_output_dir"))
+
         self.mainloop()
 
     def AddRemoveFileType(self, fileType):
@@ -79,6 +104,7 @@ class App(tk.Tk):
         else:
             self.used_file_types.append(fileType)
         print(self.used_file_types)
+        self.config.set("main", "used_file_types", f"{self.used_file_types}")
 
     def BrowseFiles(self, textbox):
         filename = filedialog.askdirectory(
@@ -90,6 +116,7 @@ class App(tk.Tk):
         print(f"Selected {filename} as input directory")
         textbox.delete(0, "end")
         textbox.insert(0, filename)
+        self.config.set("main", f"{textbox=}".split("=")[0], filename)
 
     def throw_error_message(self, message):
         tk.messagebox.showerror(title="Error", message=message)
