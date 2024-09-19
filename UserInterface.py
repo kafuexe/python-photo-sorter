@@ -3,8 +3,10 @@ from tkinter import filedialog
 import os
 from tkinter.ttk import Progressbar
 import time, threading
-
+from datetime import datetime
+import datetime as Dt
 from MetaDataRead import MetaDataReader
+import configparser
 
 
 class App(tk.Tk):
@@ -13,17 +15,32 @@ class App(tk.Tk):
         global SUPPORTED_FILE_TYPES
         SUPPORTED_FILE_TYPES = support_file_types
         self.mtdr = MetaDataReader(SUPPORTED_FILE_TYPES)
+        self.config = configparser.ConfigParser()
 
-        self.used_file_types = []
+        thisfolder = os.path.dirname(os.path.abspath(__file__))
+        self.initfile = os.path.join(thisfolder, "config.ini")
 
-        self.geometry("900x640")
-        self.title("CyberChaperone")
+        create_new = not os.path.exists(self.initfile)
+
+        self.config.read(self.initfile)
+        if create_new:
+            self.config.add_section("main")
+            print("added MAIN SECTION")
+            self.config.set("main", "used_file_types", "")
+            self.config.set("main", "textbox_input_dir", "")
+            self.config.set("main", "textbox_output_dir", "")
+            self.config.write(open(self.initfile, "w"))
+
+        self.geometry("640x640")
+        self.title("File Sorter")
 
         # input section ----------------------------------------------------------
         self.button_change_input_dir = tk.Button(
             self,
             text="Browse Files",
-            command=lambda: self.BrowseFiles(self.textbox_input_dir),
+            command=lambda: self.BrowseFiles(
+                self.textbox_input_dir, "textbox_input_dir"
+            ),
         )
         self.textbox_input_dir = tk.Entry(self, width=50, bg="light yellow")
         self.label_input_dir = tk.Label(self, text="Input Directory")
@@ -31,23 +48,24 @@ class App(tk.Tk):
         self.button_change_output_dir = tk.Button(
             self,
             text="Browse Files",
-            command=lambda: self.BrowseFiles(self.textbox_output_dir),
+            command=lambda: self.BrowseFiles(
+                self.textbox_output_dir, "textbox_output_dir"
+            ),
         )
         self.textbox_output_dir = tk.Entry(self, width=50, bg="light yellow")
         self.label_output_dir = tk.Label(self, text="Output Directory")
 
         # filetypes Check buttons -------------------------------------------------
-        label_row = 0
         self.Checkbutton_list = []
         for pos in range(len(SUPPORTED_FILE_TYPES)):
             filetype = SUPPORTED_FILE_TYPES[pos]
+
             x = tk.Checkbutton(
                 text=filetype,
                 command=lambda filetype=filetype: self.AddRemoveFileType(filetype),
             )
 
             self.Checkbutton_list.append(x)
-
             x.grid(column=7, row=pos, sticky="w")
 
         for i in range(len(self.Checkbutton_list)):
@@ -57,6 +75,7 @@ class App(tk.Tk):
         self.button_exit = tk.Button(self, text="Exit", command=exit)
         self.button_move = tk.Button(self, text="Move", command=self.move)
 
+        # setting up the grid ------------------------------------------------------
         self.textbox_input_dir.grid(row=1, column=1)
         self.button_change_input_dir.grid(row=1, column=2)
         self.label_input_dir.grid(row=1, column=0)
@@ -67,7 +86,33 @@ class App(tk.Tk):
 
         self.button_move.grid(column=1, row=3)
         self.button_exit.grid(column=1, row=4)
+
+        # loading last saved settings ------------------------------------------------
+
+        x = self.config["main"]["used_file_types"]
+        x = [n.strip() for n in x[1:-1].replace("'", "").split(",")]
+        print(x)
+        self.used_file_types = x
+        for x in self.Checkbutton_list:
+            if x.cget("text") in self.used_file_types:
+                x.select()
+
+        y = self.config["main"]["textbox_input_dir"]
+        print(y)
+        self.textbox_input_dir.delete(0, "end")
+        self.textbox_input_dir.insert(0, y)
+
+        y = self.config["main"]["textbox_output_dir"]
+        print(y)
+        self.textbox_output_dir.delete(0, "end")
+        self.textbox_output_dir.insert(0, y)
+
         self.mainloop()
+
+    ##----------------------------------------------------------------
+    def write_to_config(self):
+        with open(self.initfile, "w") as configfile:  # save
+            self.config.write(configfile)
 
     def AddRemoveFileType(self, fileType):
         if fileType not in SUPPORTED_FILE_TYPES:
@@ -78,8 +123,10 @@ class App(tk.Tk):
         else:
             self.used_file_types.append(fileType)
         print(self.used_file_types)
+        self.config["main"]["used_file_types"] = f"{self.used_file_types}"
+        self.write_to_config()
 
-    def BrowseFiles(self, textbox):
+    def BrowseFiles(self, textbox, name):
         filename = filedialog.askdirectory(
             # initialdir="/",
             initialdir="D:\\.backups\\phone backups\\pixel7ofek20230126\\DCIM\\Camera\\",
@@ -89,6 +136,9 @@ class App(tk.Tk):
         print(f"Selected {filename} as input directory")
         textbox.delete(0, "end")
         textbox.insert(0, filename)
+
+        self.config["main"][name] = filename
+        self.write_to_config()
 
     def throw_error_message(self, message):
         tk.messagebox.showerror(title="Error", message=message)
@@ -136,7 +186,18 @@ class App(tk.Tk):
                         case _:
                             data = None
 
+                    if data is None:
+                        print("data IS NONE")
+                        continue
+
+                    ## this is NOT CHANGEABLE!!! THIS IS FORMAT OF RECEIVED DATA
+                    ## AND NOT THE FORMAT OF THE FILENAMES!. dont change plz
+                    tf = "%Y:%m:%d %H:%M:%S"
+                    # 19 is the expected length of a date.
+                    pars_data = datetime.strptime(data[:19], tf)
+
                     print(f"{filename} ||| {data}")
+                    print(pars_data)
                     ################################
 
             ## progress bar updating
