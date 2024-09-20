@@ -7,6 +7,39 @@ from datetime import datetime
 import datetime as Dt
 from MetaDataRead import MetaDataReader
 import configparser
+from idlelib.tooltip import Hovertip
+
+TOOLTIPTEXT = """
+Form  	|Description					|Example			
+%a	|Weekday, short version				|Wed 			
+%A	|Weekday, full version				|Wednesday		
+%w	|Weekday as a number 0-6, 0 is Sunday		|3			
+%d	|Day of month 01-31				|31			
+%b	|Month name, short version			|Dec			
+%B	|Month name, full version			    |December		
+%m	|Month as a number 01-12			    |12			
+%y	|Year, short version, without century		    |18			
+%Y	|Year, full version				    |2018			
+%H	|Hour 00-23					|17			
+%I	|Hour 00-12					|05			
+%p	|AM/PM						|PM			
+%M	|Minute 00-59					|41			
+%S	|Second 00-59					|08			
+%f	|Microsecond 000000-999999			|548513			
+%z	|UTC offset					|+0100			
+%Z	|Timezone					|CST			
+%j	|Day number of year 001-366			|365			
+%U	|Week num of year, Sunday as first day of week, 00-053		|52	
+%W	|Week num of year, Monday as first day of week, 00-53		|52	
+%c	|Local ver of date and time			|Mon Dec 31 17:41:00 2018
+%C	|Century					|20			
+%x	|Local version of date				|12/31/18		
+%X	|Local version of time				|17:41:00		
+%%	|A % character					|%			
+%G	|ISO 8601 year					|2018			
+%u	|ISO 8601 weekday (1-7)				|1			
+%V	|ISO 8601 weeknumber (01-53)			|01			
+"""
 
 
 class App(tk.Tk):
@@ -31,10 +64,10 @@ class App(tk.Tk):
             self.config.set("main", "textbox_output_dir", "")
             self.config.write(open(self.initfile, "w"))
 
-        self.geometry("640x640")
+        self.geometry("700x640")
         self.title("File Sorter")
 
-        # input section ----------------------------------------------------------
+        # input box
         self.button_change_input_dir = tk.Button(
             self,
             text="Browse Files",
@@ -42,9 +75,10 @@ class App(tk.Tk):
                 self.textbox_input_dir, "textbox_input_dir"
             ),
         )
-        self.textbox_input_dir = tk.Entry(self, width=50, bg="light yellow")
+
+        self.textbox_input_dir = tk.Entry(self, width=60, bg="light yellow")
         self.label_input_dir = tk.Label(self, text="Input Directory")
-        # output section --------------------------------------------------------
+        # output box
         self.button_change_output_dir = tk.Button(
             self,
             text="Browse Files",
@@ -52,8 +86,11 @@ class App(tk.Tk):
                 self.textbox_output_dir, "textbox_output_dir"
             ),
         )
-        self.textbox_output_dir = tk.Entry(self, width=50, bg="light yellow")
+        self.textbox_output_dir = tk.Entry(self, width=60, bg="light yellow")
         self.label_output_dir = tk.Label(self, text="Output Directory")
+
+        self.textbox_input_format = tk.Entry(self, width=60, bg="light yellow")
+        self.label_input_format = tk.Label(self, text="Input format")
 
         # filetypes Check buttons -------------------------------------------------
         self.Checkbutton_list = []
@@ -72,7 +109,6 @@ class App(tk.Tk):
             pass
 
         # other ----------------------------------------------------------------
-        self.button_exit = tk.Button(self, text="Exit", command=exit)
         self.button_move = tk.Button(self, text="Move", command=self.move)
 
         # setting up the grid ------------------------------------------------------
@@ -84,8 +120,15 @@ class App(tk.Tk):
         self.button_change_output_dir.grid(row=2, column=2)
         self.label_output_dir.grid(row=2, column=0)
 
-        self.button_move.grid(column=1, row=3)
-        self.button_exit.grid(column=1, row=4)
+        self.textbox_input_format.grid(row=3, column=1)
+        self.label_input_format.grid(row=3, column=0)
+        myTip = Hovertip(self.textbox_input_format, TOOLTIPTEXT)
+
+        tk.Canvas(background="black", width=700, height=3).grid(
+            row=6, column=0, columnspan=100
+        )
+
+        self.button_move.grid(row=7, column=1)
 
         # loading last saved settings ------------------------------------------------
 
@@ -106,6 +149,10 @@ class App(tk.Tk):
         print(y)
         self.textbox_output_dir.delete(0, "end")
         self.textbox_output_dir.insert(0, y)
+
+        # y = self.config["main"]["textbox_input_format"]
+        # self.textbox_input_format.delete(0, "end")
+        # self.textbox_input_format.insert(0, y)
 
         self.mainloop()
 
@@ -186,6 +233,7 @@ class App(tk.Tk):
                         case _:
                             data = None
 
+                    # photo with no data
                     if data is None:
                         print("data IS NONE")
                         continue
@@ -193,11 +241,15 @@ class App(tk.Tk):
                     ## this is NOT CHANGEABLE!!! THIS IS FORMAT OF RECEIVED DATA
                     ## AND NOT THE FORMAT OF THE FILENAMES!. dont change plz
                     tf = "%Y:%m:%d %H:%M:%S"
-                    # 19 is the expected length of a date.
+                    # 19 is the expected length of a date for the format string
                     pars_data = datetime.strptime(data[:19], tf)
+
+                    folder_name = pars_data.strftime(self.textbox_input_format.get())
 
                     print(f"{filename} ||| {data}")
                     print(pars_data)
+                    print(folder_name)
+
                     ################################
 
             ## progress bar updating
