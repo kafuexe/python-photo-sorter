@@ -8,6 +8,7 @@ import datetime as Dt
 from MetaDataRead import MetaDataReader
 import configparser
 from idlelib.tooltip import Hovertip
+import sys
 
 TOOLTIPTEXT = """
 Form  	|Description					|Example			
@@ -49,6 +50,7 @@ class App(tk.Tk):
         SUPPORTED_FILE_TYPES = support_file_types
         self.mtdr = MetaDataReader(SUPPORTED_FILE_TYPES)
         self.config = configparser.ConfigParser()
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         thisfolder = os.path.dirname(os.path.abspath(__file__))
         self.initfile = os.path.join(thisfolder, "config.ini")
@@ -200,6 +202,9 @@ class App(tk.Tk):
         pb.grid(row=1, column=1)
         return root, pb
 
+    def throw_error_message(error_text):
+        tk.messagebox.error(title="Error!", text=error_text)
+
     def move(self):
         response = tk.messagebox.askyesno(
             title="Are you Sure?",
@@ -209,13 +214,15 @@ class App(tk.Tk):
         )
         if not response:
             return
-
-        folder = os.path.join(self.textbox_input_dir.get(), "")
+        try:
+            folder = os.path.join(self.textbox_input_dir.get(), "")
+        except:
+            self.throw_error_message("Input path is invalid")
+            return
 
         lstdirlen = len(os.listdir(folder))
-
         files_compleated = 0
-        pbroot, pb = self.my_progressbar()
+        self.pbroot, pb = self.my_progressbar()
         pb["value"] = 0
 
         for filename in os.listdir(folder):
@@ -255,9 +262,18 @@ class App(tk.Tk):
             ## progress bar updating
             files_compleated += 1
             pb["value"] = (files_compleated / lstdirlen) * 100
-            pbroot.update()
+            self.pbroot.update()
 
-        pbroot.destroy()
+        self.pbroot.destroy()
+
+    def on_closing(self):
+        self.destroy()
+        try:
+            self.pbroot.destroy()
+        except:
+            pass
+        print("exiting")
+        sys.exit()
 
 
 if __name__ == "__main__":
