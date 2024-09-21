@@ -64,6 +64,8 @@ class App(tk.Tk):
             self.config.set("main", "used_file_types", "")
             self.config.set("main", "textbox_input_dir", "")
             self.config.set("main", "textbox_output_dir", "")
+            self.config.set("main", "textbox_input_format", "")
+
             self.config.write(open(self.initfile, "w"))
 
         self.geometry("700x640")
@@ -152,9 +154,9 @@ class App(tk.Tk):
         self.textbox_output_dir.delete(0, "end")
         self.textbox_output_dir.insert(0, y)
 
-        # y = self.config["main"]["textbox_input_format"]
-        # self.textbox_input_format.delete(0, "end")
-        # self.textbox_input_format.insert(0, y)
+        y = self.config["main"]["textbox_input_format"].replace("%%", "%")
+        self.textbox_input_format.delete(0, "end")
+        self.textbox_input_format.insert(0, y)
 
         self.mainloop()
 
@@ -189,8 +191,37 @@ class App(tk.Tk):
         self.config["main"][name] = filename
         self.write_to_config()
 
-    def throw_error_message(self, message):
-        tk.messagebox.showerror(title="Error", message=message)
+    def is_path_creatable(self, pathname: str) -> bool:
+        """
+        `True` if the current user has sufficient permissions to create the passed
+        pathname; `False` otherwise.
+        """
+        # Parent directory of the passed path. If empty, we substitute the current
+        # working directory (CWD) instead.
+        dirname = os.path.dirname(pathname) or os.getcwd()
+        return os.access(dirname, os.W_OK)
+
+    def is_path_exists_or_creatable(self, pathname: str) -> bool:
+        """
+        `True` if the passed pathname is a valid pathname for the current OS _and_
+        either currently exists or is hypothetically creatable; `False` otherwise.
+
+        This function is guaranteed to _never_ raise exceptions.
+        """
+        try:
+            # To prevent "os" module calls from raising undesirable exceptions on
+            # invalid pathnames, is_pathname_valid() is explicitly called first.
+            return self.is_pathname_valid(pathname) and (
+                os.path.exists(pathname) or self.is_path_creatable(pathname)
+            )
+        # Report failure on non-fatal filesystem complaints (e.g., connection
+        # timeouts, permissions issues) implying this path to be inaccessible. All
+        # other exceptions are unrelated fatal issues and should not be caught here.
+        except OSError:
+            return False
+
+    def throw_error_message(self, message="", detail=""):
+        tk.messagebox.showerror(title="Error", message=message, detail=detail)
 
     def my_progressbar(self):
         root = tk.Tk()
@@ -202,9 +233,6 @@ class App(tk.Tk):
         pb.grid(row=1, column=1)
         return root, pb
 
-    def throw_error_message(error_text):
-        tk.messagebox.error(title="Error!", text=error_text)
-
     def move(self):
         response = tk.messagebox.askyesno(
             title="Are you Sure?",
@@ -214,10 +242,25 @@ class App(tk.Tk):
         )
         if not response:
             return
-        try:
-            folder = os.path.join(self.textbox_input_dir.get(), "")
-        except:
+
+        folder = self.textbox_input_dir.get()
+        user_outputdir = self.textbox_output_dir.get()
+        user_format = self.textbox_input_format.get()
+
+        if not os.path.exists(folder):
             self.throw_error_message("Input path is invalid")
+            return
+        if not os.path.exists(user_outputdir):
+            self.throw_error_message("output path is invalid")
+            return
+        if any(
+            cher in user_format
+            for cher in ["/", ">", "<", ":", '"', "\\", "|", "?", "*"]
+        ):
+            self.throw_error_message(
+                message="""Input format is invalid""",
+                detail="It may contain Invalid characters such as: \n/ , > , < , : , '' , \ , | , ? , *",
+            )
             return
 
         lstdirlen = len(os.listdir(folder))
@@ -250,8 +293,11 @@ class App(tk.Tk):
                     tf = "%Y:%m:%d %H:%M:%S"
                     # 19 is the expected length of a date for the format string
                     pars_data = datetime.strptime(data[:19], tf)
+                    folder_name = pars_data.strftime(user_format)
 
-                    folder_name = pars_data.strftime(self.textbox_input_format.get())
+                    folder_path = os.path.join(user_outputdir, folder_name)
+
+                    # self.is_path_exists_or_creatable()
 
                     print(f"{filename} ||| {data}")
                     print(pars_data)
@@ -267,11 +313,21 @@ class App(tk.Tk):
         self.pbroot.destroy()
 
     def on_closing(self):
+
+        self.config["main"]["used_file_types"] = f"{self.used_file_types}"
+        self.config["main"]["textbox_input_dir"] = f"{self.textbox_input_dir.get()}"
+        self.config["main"]["textbox_output_dir"] = f"{self.textbox_output_dir.get()}"
+        self.config["main"][
+            "textbox_input_format"
+        ] = self.textbox_input_format.get().replace("%", "%%")
+
         self.destroy()
         try:
             self.pbroot.destroy()
         except:
             pass
+
+        self.write_to_config()
         print("exiting")
         sys.exit()
 
