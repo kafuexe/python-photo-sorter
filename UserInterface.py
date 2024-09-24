@@ -241,8 +241,7 @@ class App(tk.Tk):
 
     def BrowseFiles(self, textbox, name):
         filename = filedialog.askdirectory(
-            # initialdir="/",
-            initialdir="D:\\.backups\\phone backups\\pixel7ofek20230126\\DCIM\\Camera\\",
+            initialdir="/",
             title="Select a folder",
         )
         # Change label contents
