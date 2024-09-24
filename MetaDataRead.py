@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import subprocess
 import time
+import pathlib
 
 
 class MetaDataReader:
@@ -43,7 +44,7 @@ class MetaDataReader:
         EXIFTOOL_DATE_TAG_VIDEOS = "Create Date"
 
         exif_tool_path = os.path.join(
-            os.path.abspath(os.getcwd()), "exiftool\\exiftool64.exe"
+            pathlib.Path(__file__).parent.resolve(), "exiftool\\exiftool64.exe"
         )
 
         process = subprocess.Popen(
@@ -120,9 +121,14 @@ class MetaDataReader:
         # print("DateExifTool --------")
 
 
-if __name__ == "__main__":
+def my_test_main():
     # D:\.backups\phone backups\pixel7ofek20230126\DCIM\Camera\
     path = r"D:\\.backups\\phone backups\\pixel7ofek20230126\DCIM\\Camera\\"
     test_SUPPORTED_FILE_TYPES = ["jpg", "png", "wepg", "mov", "avi", "mp4"]
     x = MetaDataReader(test_SUPPORTED_FILE_TYPES)
     x.maintest(path)
+
+
+if __name__ == "__main__":
+    pass
+    # my_test_main()

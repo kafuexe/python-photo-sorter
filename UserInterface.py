@@ -78,6 +78,7 @@ class App(tk.Tk):
             self.config.set("main", "textbox_input_dir", "")
             self.config.set("main", "textbox_output_dir", "")
             self.config.set("main", "textbox_input_format", "")
+            self.config.set("main", "checkbutton_unknowdata_checkvar", "0")
 
             self.config.write(open(self.initfile, "w"))
 
@@ -241,8 +242,7 @@ class App(tk.Tk):
 
     def BrowseFiles(self, textbox, name):
         filename = filedialog.askdirectory(
-            # initialdir="/",
-            initialdir="D:\\.backups\\phone backups\\pixel7ofek20230126\\DCIM\\Camera\\",
+            initialdir="/",
             title="Select a folder",
         )
         # Change label contents
