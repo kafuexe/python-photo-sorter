@@ -11,7 +11,6 @@ class MetaDataReader:
         self.supported_file_types = SUPPORTED_FILE_TYPES
 
     def imgDateExif(self, path):
-        TIME_FORMAT = "%Y/%m/%d %H:%M:%S.%f"
         "returns the image date from image (if available)\nfrom Orthallelous"
 
         # for subsecond prec, see doi.org/10.3189/2013JoG12J126 , sect. 2.2, 2.3
@@ -20,18 +19,22 @@ class MetaDataReader:
             (36868, 37522),  # (DateTimeDigitized, SubsecTimeDigitized)
             (306, 37520),
         ]  # (DateTime, SubsecTime)
-        exif = Image.open(path).getexif()
+        dat = None
+        sub = None
+        try:
+            exif = Image.open(path).getexif()
 
-        for t in tags:
-            dat = exif.get(t[0])
-            sub = exif.get(t[1], 0)
+            for t in tags:
+                dat = exif.get(t[0])
+                sub = exif.get(t[1], 0)
 
-            # PIL.PILLOW_VERSION >= 3.0 returns a tuple
-            dat = dat[0] if type(dat) == tuple else dat
-            sub = sub[0] if type(sub) == tuple else sub
-            if dat != None:
-                break
-
+                # PIL.PILLOW_VERSION >= 3.0 returns a tuple
+                dat = dat[0] if type(dat) == tuple else dat
+                sub = sub[0] if type(sub) == tuple else sub
+                if dat != None:
+                    break
+        except:
+            return None
         if dat == None:
             return None
         full = "{}.{}".format(dat, sub)
@@ -40,7 +43,6 @@ class MetaDataReader:
         return full
 
     def DateExifTool(self, path):
-        TIME_FORMAT = "%d/%m/%Y %H:%M:%S.%f"
         EXIFTOOL_DATE_TAG_VIDEOS = "Create Date"
 
         exif_tool_path = os.path.join(

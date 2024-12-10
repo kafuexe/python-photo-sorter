@@ -1,5 +1,7 @@
 # need to read exif and xmp for matadeta
 # c:\RecentlyUploadedPhotos\YYYYMMDD
+from . import UserInterface
+from . import MetaDataRead
 
 from UserInterface import App
 
