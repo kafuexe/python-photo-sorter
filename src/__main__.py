@@ -1,3 +1,5 @@
+import logging
+
 from .services.config_service import ConfigService
 from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
@@ -7,8 +9,18 @@ from .services.steps import FileFinder, MetadataExtractor, DestinationResolver, 
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
 
+logger = logging.getLogger(__name__)
+
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    logger.info("Starting Photo Sorter")
+
     # 1. Services
     config_service = ConfigService()
 

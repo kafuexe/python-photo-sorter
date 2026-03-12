@@ -1,4 +1,8 @@
+import logging
+
 from .base import BaseHandler
+
+logger = logging.getLogger(__name__)
 
 
 class HandlerRegistry:
@@ -8,6 +12,7 @@ class HandlerRegistry:
 
     def register(self, handler: BaseHandler) -> None:
         extensions = handler.supported_extensions()
+        logger.info("Registering handler %s for extensions: %s", type(handler).__name__, extensions)
         for ext in extensions:
             ext = ext.lower()
             if ext == "*":

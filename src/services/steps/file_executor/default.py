@@ -1,7 +1,10 @@
+import logging
 import shutil
 from pathlib import Path
 
 from .base import BaseFileExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class FileExecutor(BaseFileExecutor):
@@ -15,6 +18,8 @@ class FileExecutor(BaseFileExecutor):
             shutil.move(str(source), str(dest))
         else:
             shutil.copy2(str(source), str(dest))
+
+        logger.debug("%s: %s -> %s", action.capitalize(), source, dest)
 
     @staticmethod
     def _resolve_collision(dest: Path) -> Path:

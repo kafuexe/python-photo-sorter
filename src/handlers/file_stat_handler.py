@@ -1,8 +1,11 @@
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 
 from .base import BaseHandler
+
+logger = logging.getLogger(__name__)
 
 
 class FileStatHandler(BaseHandler):
@@ -20,4 +23,5 @@ class FileStatHandler(BaseHandler):
             timestamp = min(stat.st_mtime, stat.st_ctime)
             return {"date": datetime.fromtimestamp(timestamp)}
         except (OSError, ValueError):
+            logger.debug("Failed to read file stats for %s", file_path.name)
             return {}

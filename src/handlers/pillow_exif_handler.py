@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
 
 from .base import BaseHandler
+
+logger = logging.getLogger(__name__)
 
 
 EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
@@ -26,6 +29,7 @@ class PillowExifHandler(BaseHandler):
         try:
             exif = Image.open(file_path).getexif()
         except Exception:
+            logger.debug("Failed to read EXIF from %s", file_path.name)
             return {}
 
         metadata = {}

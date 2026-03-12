@@ -1,3 +1,4 @@
+import logging
 import threading
 import tkinter as tk
 from tkinter import messagebox
@@ -10,6 +11,8 @@ from ..services.processing_service import ProcessingService
 from ..handlers.registry import HandlerRegistry
 from .widgets.directory_entry import DirectoryEntry
 from .widgets.checkbutton_group import CheckbuttonGroup
+
+logger = logging.getLogger(__name__)
 
 
 FORMAT_TOOLTIP = """Strftime format codes:
@@ -166,6 +169,7 @@ class AppWindow(tk.Tk):
         self._btn_move.config(state=tk.DISABLED)
         self._btn_copy.config(state=tk.DISABLED)
         self._status_var.set("Processing...")
+        logger.info("Starting %s operation", action)
 
         config = self._build_config(action)
 
@@ -198,6 +202,7 @@ class AppWindow(tk.Tk):
 
         summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors."
         self._status_var.set(summary)
+        logger.info(summary)
 
         messagebox.showinfo("Complete", summary)
 

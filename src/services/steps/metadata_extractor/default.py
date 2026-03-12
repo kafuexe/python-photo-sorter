@@ -1,7 +1,10 @@
+import logging
 from pathlib import Path
 
 from ....handlers.registry import HandlerRegistry
 from .base import BaseMetadataExtractor
+
+logger = logging.getLogger(__name__)
 
 
 class MetadataExtractor(BaseMetadataExtractor):
@@ -19,6 +22,7 @@ class MetadataExtractor(BaseMetadataExtractor):
             try:
                 result = handler.extract_metadata(file_path)
             except Exception:
+                logger.debug("Handler %s failed for %s", type(handler).__name__, file_path)
                 continue
 
             for key, value in result.items():
@@ -28,5 +32,10 @@ class MetadataExtractor(BaseMetadataExtractor):
                 else:
                     if key not in merged:
                         merged[key] = value
+
+        if "date" in merged:
+            logger.debug("Extracted date %s from %s", merged["date"], file_path.name)
+        else:
+            logger.debug("No date found for %s", file_path.name)
 
         return merged
