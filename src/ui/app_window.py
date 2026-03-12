@@ -1,224 +1,209 @@
-"""Main application window."""
+import threading
 import tkinter as tk
-from tkinter import filedialog, message as tk_messagebox
+from tkinter import messagebox
 from pathlib import Path
-import os
 
-from .constants import FORMAT_TOOLTIPTEXT, UNKNOWN_TOOLTIP, INVALID_FORMAT_CHARS
+from ..models.file_result import FileResult
+from ..models.processing_config import ProcessingConfig
+from ..services.config_service import ConfigService
+from ..services.processing_service import ProcessingService
+from ..handlers.registry import HandlerRegistry
+from .widgets.directory_entry import DirectoryEntry
+from .widgets.checkbutton_group import CheckbuttonGroup
+
+
+FORMAT_TOOLTIP = """Strftime format codes:
+%Y  Year (2024)        %m  Month (01-12)      %d  Day (01-31)
+%H  Hour (00-23)       %M  Minute (00-59)     %S  Second (00-59)
+
+Example: %Y/%m/%d -> 2024/01/15"""
+
+UNKNOWN_TOOLTIP = """If checked, files without a detected date will be
+moved to a dedicated folder (default: ".unknown").
+If unchecked, those files will be left as-is."""
 
 
 class AppWindow(tk.Tk):
-    """Main application window with all UI components."""
-
-    def __init__(self, supported_file_types: list[str]):
-        """Initialize the application window.
-
-        Args:
-            supported_file_types: List of supported file extensions.
-        """
+    def __init__(self,
+                 config_service: ConfigService,
+                 processing_service: ProcessingService,
+                 registry: HandlerRegistry):
         super().__init__()
-        self.title("File Sorter")
-        self.geometry("700x640")
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        self.supported_file_types = supported_file_types
-        self.setup_ui()
+        self._config_service = config_service
+        self._processing_service = processing_service
+        self._registry = registry
+        self._processing = False
 
-    def setup_ui(self) -> None:
-        """Set up the user interface."""
-        # Input directory
-        self.input_label = tk.Label(self, text="Input Directory")
-        self.input_entry_var = tk.StringVar()
-        self.input_entry = tk.Entry(self, textvariable=self.input_entry_var, width=40, bg="light yellow")
-        self.input_browse_btn = tk.Button(self, text="Browse", command=self.browse_input)
+        self.title("Photo Sorter")
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        self.input_label.grid(row=1, column=0, padx=5, pady=5)
-        self.input_entry.grid(row=1, column=1, padx=5, pady=5)
-        self.input_browse_btn.grid(row=1, column=2)
+        self._build_ui()
+        self._load_config()
 
-        # Output directory
-        self.output_label = tk.Label(self, text="Output Directory")
-        self.output_entry_var = tk.StringVar()
-        self.output_entry = tk.Entry(self, textvariable=self.output_entry_var, width=40, bg="light yellow")
-        self.output_browse_btn = tk.Button(self, text="Browse", command=self.browse_output)
+    def _build_ui(self) -> None:
+        # Directories
+        dir_frame = tk.LabelFrame(self, text="Directories", padx=10, pady=10)
+        dir_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
 
-        self.output_label.grid(row=2, column=0, padx=5, pady=5)
-        self.output_entry.grid(row=2, column=1, padx=5, pady=5)
-        self.output_browse_btn.grid(row=2, column=2)
+        self._input_dir = DirectoryEntry(dir_frame, "Input:")
+        self._input_dir.pack(fill=tk.X, pady=2)
 
-        # Input format
-        self.format_label = tk.Label(self, text="Input format")
-        self.format_entry_var = tk.StringVar(value="%%Y%%m%%d")
-        self.format_entry = tk.Entry(self, textvariable=self.format_entry_var, width=40, bg="light yellow")
-        self.format_label.grid(row=3, column=0, padx=5, pady=5)
-        self.format_entry.grid(row=3, column=1, padx=5, pady=5)
+        self._output_dir = DirectoryEntry(dir_frame, "Output:")
+        self._output_dir.pack(fill=tk.X, pady=2)
 
-        # File type checkbuttons
-        self.type_checkbuttons = []
-        for pos, filetype in enumerate(self.supported_file_types):
-            cb = tk.Checkbutton(self, text=filetype)
-            cb.grid(column=10, row=pos, sticky="w")
-            self.type_checkbuttons.append(cb)
+        # Format
+        format_frame = tk.LabelFrame(self, text="Date Format", padx=10, pady=10)
+        format_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        # Unknown data checkbox
-        self.unknown_check_var = tk.IntVar(value=0)
-        self.unknown_check = tk.Checkbutton(
-            self,
-            text="Move Unknown Data?",
-            variable=self.unknown_check_var,
-            command=self.unknown_check_callback,
-        )
-        self.unknown_check.grid(row=4, column=1, padx=5, pady=5)
+        self._format_var = tk.StringVar(value="%Y/%m/%d")
+        format_entry = tk.Entry(format_frame, textvariable=self._format_var, width=30, bg="light yellow")
+        format_entry.pack(side=tk.LEFT, padx=(0, 10))
+
+        format_help = tk.Label(format_frame, text=FORMAT_TOOLTIP, justify=tk.LEFT,
+                               font=("Consolas", 8), fg="gray40")
+        format_help.pack(side=tk.LEFT)
+
+        # File types
+        types_frame = tk.LabelFrame(self, text="File Types", padx=10, pady=10)
+        types_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        self._file_types = CheckbuttonGroup(types_frame, self._registry.get_all_extensions())
+        self._file_types.pack(fill=tk.X)
+
+        # Options
+        options_frame = tk.LabelFrame(self, text="Options", padx=10, pady=10)
+        options_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        self._unknown_var = tk.BooleanVar(value=True)
+        unknown_cb = tk.Checkbutton(options_frame, text="Move files with unknown dates to separate folder",
+                                    variable=self._unknown_var)
+        unknown_cb.pack(anchor=tk.W)
 
         # Action buttons
-        self.btn_move = tk.Button(self, text="Move", command=self.action_move)
-        self.btn_copy = tk.Button(self, text="Copy", command=self.action_copy)
-        self.btn_move.grid(row=5, column=1, padx=10, pady=10)
-        self.btn_copy.grid(row=5, column=2, padx=10, pady=10)
+        btn_frame = tk.Frame(self, padx=10, pady=10)
+        btn_frame.pack(fill=tk.X)
 
-        # Separator
-        tk.Canvas(self, background="black", width=500, height=2).grid(
-            row=6, column=0, columnspan=5
+        self._btn_move = tk.Button(btn_frame, text="Move Files", command=self._on_move, width=15)
+        self._btn_move.pack(side=tk.LEFT, padx=(0, 10))
+
+        self._btn_copy = tk.Button(btn_frame, text="Copy Files", command=self._on_copy, width=15)
+        self._btn_copy.pack(side=tk.LEFT)
+
+        # Status
+        self._status_var = tk.StringVar(value="Ready")
+        status_bar = tk.Label(self, textvariable=self._status_var, relief=tk.SUNKEN, anchor=tk.W)
+        status_bar.pack(fill=tk.X, side=tk.BOTTOM, padx=10, pady=(0, 10))
+
+    def _load_config(self) -> None:
+        config = self._config_service.load()
+        self._input_dir.set(config.get("input_dir", ""))
+        self._output_dir.set(config.get("output_dir", ""))
+        self._format_var.set(config.get("date_format", "%Y/%m/%d"))
+        self._file_types.set_selected(config.get("selected_extensions", []))
+        self._unknown_var.set(config.get("handle_unknown", True))
+
+    def _save_config(self) -> None:
+        config = {
+            "input_dir": self._input_dir.get(),
+            "output_dir": self._output_dir.get(),
+            "date_format": self._format_var.get(),
+            "selected_extensions": self._file_types.get_selected(),
+            "handle_unknown": self._unknown_var.get(),
+        }
+        self._config_service.save(config)
+
+    def _build_config(self, action: str) -> ProcessingConfig:
+        return ProcessingConfig(
+            input_dir=Path(self._input_dir.get()),
+            output_dir=Path(self._output_dir.get()),
+            date_format=self._format_var.get(),
+            action=action,
+            selected_extensions=self._file_types.get_selected(),
+            handle_unknown=self._unknown_var.get(),
         )
 
-        # Tooltips
-        format_tooltip = Hovertip(self.format_entry, FORMAT_TOOLTIPTEXT)
-        unknown_tooltip = Hovertip(self.unknown_check, UNKNOWN_TOOLTIP)
-
-    def browse_input(self) -> None:
-        """Browse for input directory."""
-        filename = filedialog.askdirectory(initialdir="/", title="Select a folder")
-        if filename:
-            self.input_entry_var.set(filename)
-
-    def browse_output(self) -> None:
-        """Browse for output directory."""
-        filename = filedialog.askdirectory(initialdir="/", title="Select a folder")
-        if filename:
-            self.output_entry_var.set(filename)
-
-    def unknown_check_callback(self) -> None:
-        """Handle unknown data checkbox state change."""
-        pass
-
-    def action_move(self) -> None:
-        """Handle move action."""
-        self.process_selection("move")
-
-    def action_copy(self) -> None:
-        """Handle copy action."""
-        self.process_selection("copy")
-
-    def process_selection(self, action: str) -> None:
-        """Process selected files.
-
-        Args:
-            action: Either "move" or "copy".
-        """
-        input_dir = self.input_entry_var.get()
-        output_dir = self.output_entry_var.get()
-        input_format = self.format_entry_var.get()
-        move_unknown = self.unknown_check_var.get() == 1
+    def _validate(self) -> bool:
+        input_dir = self._input_dir.get()
+        output_dir = self._output_dir.get()
 
         if not input_dir or not output_dir:
-            tk_messagebox.showerror("Error", "Please select input and output directories")
-            return
-
-        # Validate paths
-        if not os.path.isdir(input_dir):
-            tk_messagebox.showerror("Error", "Input path is invalid")
-            return
-
-        if not output_dir or not self.is_path_creatable(output_dir):
-            tk_messagebox.showerror("Error", "Output path is invalid or not writable")
-            return
-
-        if any(c in input_format for c in INVALID_FORMAT_CHARS):
-            tk_messagebox.showerror("Error", "Input format is invalid")
-            return
-
-        # Get file extensions from selected checkbuttons
-        selected_extensions = [cb.cget("text") for cb in self.type_checkbuttons if cb.selected]
-        if not selected_extensions:
-            tk_messagebox.showerror("Error", "Please select at least one file type")
-            return
-
-        # Import here to avoid circular imports
-        from ..core.meta_data_reader import get_matching_files, get_file_date
-
-        # Process files
-        for file_path in get_matching_files(input_dir, selected_extensions):
-            file_ext = Path(file_path).suffix.lower()
-
-            if file_ext in [".jpg", ".jpeg", ".webp", ".png"]:
-                date_str = get_file_date(file_path)
-            else:
-                from ..core.meta_data_reader import get_video_date
-                exiftool_path = self.get_exiftool_path()
-                date_str = get_video_date(file_path, exiftool_path)
-
-            # Handle unknown data
-            if date_str is None:
-                if move_unknown:
-                    dest = os.path.join(output_dir, ".unknown")
-                    from ..core.file_operations import move_file
-                    move_file(file_path, dest)
-                continue
-
-            # Parse date and move/copy
-            try:
-                from datetime import datetime as dt
-                dt_obj = dt.strptime(date_str[:19], "%Y:%m:%d %H:%M:%S")
-                folder_name = dt_obj.strftime(input_format)
-                dest_dir = os.path.join(output_dir, folder_name)
-
-                from ..core.file_operations import move_file as file_move, copy_file as file_copy
-                action_func = file_move if action == "move" else file_copy
-                action_func(file_path, dest_dir)
-            except ValueError:
-                if move_unknown:
-                    dest = os.path.join(output_dir, ".unknown")
-                    from ..core.file_operations import move_file
-                    move_file(file_path, dest)
-
-    def get_exiftool_path(self) -> str | None:
-        """Get path to exiftool.exe."""
-        app_dir = Path(__file__).parent.parent.parent
-        exiftool_path = app_dir / "exiftool" / "exiftool64.exe"
-
-        if exiftool_path.exists():
-            return str(exiftool_path)
-
-        alt_path = app_dir / "exiftool.exe"
-        if alt_path.exists():
-            return str(alt_path)
-
-        return None
-
-    def is_path_creatable(self, pathname: str) -> bool:
-        """Check if path is creatable.
-
-        Args:
-            pathname: Path to check.
-
-        Returns:
-            True if path is valid and writable.
-        """
-        try:
-            dirname = os.path.dirname(pathname) or os.getcwd()
-            return os.access(dirname, os.W_OK)
-        except OSError:
+            messagebox.showerror("Error", "Select input and output directories.")
             return False
 
-    def on_closing(self) -> bool:
-        """Handle window close event.
+        if not Path(input_dir).is_dir():
+            messagebox.showerror("Error", "Input directory does not exist.")
+            return False
 
-        Returns:
-            False to prevent closing.
-        """
+        if not self._file_types.get_selected():
+            messagebox.showerror("Error", "Select at least one file type.")
+            return False
+
         return True
 
+    def _on_move(self) -> None:
+        self._start_processing("move")
 
-class Hovertip:
-    """Tooltip class imported from tkinter."""
-    pass
+    def _on_copy(self) -> None:
+        self._start_processing("copy")
+
+    def _start_processing(self, action: str) -> None:
+        if self._processing:
+            return
+
+        if not self._validate():
+            return
+
+        ok = messagebox.askyesno(
+            "Confirm",
+            f"Are you sure you want to {action} the selected files?",
+            default="no",
+        )
+        if not ok:
+            return
+
+        self._processing = True
+        self._btn_move.config(state=tk.DISABLED)
+        self._btn_copy.config(state=tk.DISABLED)
+        self._status_var.set("Processing...")
+
+        config = self._build_config(action)
+
+        thread = threading.Thread(
+            target=self._run_processing,
+            args=(config,),
+            daemon=True,
+        )
+        thread.start()
+
+    def _run_processing(self, config: ProcessingConfig) -> None:
+        def on_progress(result: FileResult) -> None:
+            self.after(0, self._on_progress, result)
+
+        results = self._processing_service.process(config, on_progress=on_progress)
+        self.after(0, self._on_complete, results)
+
+    def _on_progress(self, result: FileResult) -> None:
+        self._status_var.set(f"Processing: {result.source.name} - {result.status}")
+
+    def _on_complete(self, results: list[FileResult]) -> None:
+        self._processing = False
+        self._btn_move.config(state=tk.NORMAL)
+        self._btn_copy.config(state=tk.NORMAL)
+
+        success = sum(1 for r in results if r.status == "success")
+        unknown = sum(1 for r in results if r.status == "unknown")
+        skipped = sum(1 for r in results if r.status == "skipped")
+        errors = sum(1 for r in results if r.status == "error")
+
+        summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors."
+        self._status_var.set(summary)
+
+        messagebox.showinfo("Complete", summary)
+
+    def _on_closing(self) -> None:
+        if self._processing:
+            messagebox.showwarning("Warning", "Processing is still running.")
+            return
+        self._save_config()
+        self.destroy()
