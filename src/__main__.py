@@ -3,10 +3,7 @@ from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
 from .handlers.pyexiftool_handler import PyExifToolHandler
 from .handlers.file_stat_handler import FileStatHandler
-from .services.steps.file_finder import FileFinder
-from .services.steps.metadata_extractor import MetadataExtractor
-from .services.steps.destination_resolver import DestinationResolver
-from .services.steps.file_executor import FileExecutor
+from .services.steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
 

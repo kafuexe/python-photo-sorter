@@ -1,7 +1,9 @@
 from pathlib import Path
 
+from .base import BaseFileFinder
 
-class FileFinder:
+
+class FileFinder(BaseFileFinder):
     def find(self, directory: Path, extensions: list[str]) -> list[Path]:
         """Recursively find files matching given extensions."""
         if not directory.is_dir():

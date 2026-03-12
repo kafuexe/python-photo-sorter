@@ -3,20 +3,20 @@ from typing import Callable
 
 from ..models.file_result import FileResult
 from ..models.processing_config import ProcessingConfig
-from .steps.file_finder import FileFinder
-from .steps.metadata_extractor import MetadataExtractor
-from .steps.destination_resolver import DestinationResolver
-from .steps.file_executor import FileExecutor
+from .steps.file_finder import BaseFileFinder
+from .steps.metadata_extractor import BaseMetadataExtractor
+from .steps.destination_resolver import BaseDestinationResolver
+from .steps.file_executor import BaseFileExecutor
 
 logger = logging.getLogger(__name__)
 
 
 class ProcessingService:
     def __init__(self,
-                 file_finder: FileFinder,
-                 metadata_extractor: MetadataExtractor,
-                 destination_resolver: DestinationResolver,
-                 file_executor: FileExecutor):
+                 file_finder: BaseFileFinder,
+                 metadata_extractor: BaseMetadataExtractor,
+                 destination_resolver: BaseDestinationResolver,
+                 file_executor: BaseFileExecutor):
         self._file_finder = file_finder
         self._metadata_extractor = metadata_extractor
         self._destination_resolver = destination_resolver

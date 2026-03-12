@@ -3,7 +3,7 @@ from pathlib import Path
 
 from src.handlers.base import BaseHandler
 from src.handlers.registry import HandlerRegistry
-from src.services.steps.metadata_extractor import MetadataExtractor
+from src.services.steps.metadata_extractor import MetadataExtractor, BaseMetadataExtractor
 
 
 class FakeDateHandler(BaseHandler):
@@ -38,6 +38,9 @@ class CrashingHandler(BaseHandler):
 
 
 class TestMetadataExtractor:
+    def test_is_subclass_of_base(self):
+        assert issubclass(MetadataExtractor, BaseMetadataExtractor)
+
     def test_first_date_wins(self, tmp_path):
         path = tmp_path / "test.jpg"
         path.write_bytes(b"img")

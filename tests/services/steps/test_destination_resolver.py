@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.models.processing_config import ProcessingConfig
-from src.services.steps.destination_resolver import DestinationResolver
+from src.services.steps.destination_resolver import DestinationResolver, BaseDestinationResolver
 
 
 def make_config(**overrides):
@@ -20,6 +20,9 @@ def make_config(**overrides):
 
 
 class TestDestinationResolver:
+    def test_is_subclass_of_base(self):
+        assert issubclass(DestinationResolver, BaseDestinationResolver)
+
     def test_resolves_with_date(self):
         config = make_config()
         metadata = {"date": datetime(2024, 6, 15, 14, 30)}

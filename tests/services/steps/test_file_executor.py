@@ -1,9 +1,12 @@
 from pathlib import Path
 
-from src.services.steps.file_executor import FileExecutor
+from src.services.steps.file_executor import FileExecutor, BaseFileExecutor
 
 
 class TestFileExecutor:
+    def test_is_subclass_of_base(self):
+        assert issubclass(FileExecutor, BaseFileExecutor)
+
     def test_copy(self, tmp_path):
         src = tmp_path / "photo.jpg"
         src.write_bytes(b"image data")

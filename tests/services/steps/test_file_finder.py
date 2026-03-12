@@ -1,7 +1,10 @@
-from src.services.steps.file_finder import FileFinder
+from src.services.steps.file_finder import FileFinder, BaseFileFinder
 
 
 class TestFileFinder:
+    def test_is_subclass_of_base(self):
+        assert issubclass(FileFinder, BaseFileFinder)
+
     def test_finds_matching_files(self, tmp_path):
         (tmp_path / "a.jpg").write_bytes(b"img")
         (tmp_path / "b.png").write_bytes(b"img")

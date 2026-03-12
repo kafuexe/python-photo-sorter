@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from ...handlers.registry import HandlerRegistry
+from ....handlers.registry import HandlerRegistry
+from .base import BaseMetadataExtractor
 
 
-class MetadataExtractor:
+class MetadataExtractor(BaseMetadataExtractor):
     def __init__(self, registry: HandlerRegistry):
         self._registry = registry
 

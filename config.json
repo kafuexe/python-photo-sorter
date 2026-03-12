@@ -1,0 +1,18 @@
+{
+    "input_dir": "D:\\test\\src",
+    "output_dir": "D:\\test\\end",
+    "date_format": "%D%M%Y",
+    "selected_extensions": [
+        "avi",
+        "flv",
+        "jpeg",
+        "jpg",
+        "mkv",
+        "mov",
+        "mp4",
+        "png",
+        "webp",
+        "wmv"
+    ],
+    "handle_unknown": true
+}

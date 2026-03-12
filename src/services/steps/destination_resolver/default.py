@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from ...models.processing_config import ProcessingConfig
+from ....models.processing_config import ProcessingConfig
+from .base import BaseDestinationResolver
 
 
-class DestinationResolver:
+class DestinationResolver(BaseDestinationResolver):
     def resolve(self, file_path: Path, metadata: dict,
                 config: ProcessingConfig) -> Path | None:
         """Build destination path from metadata date + format string.

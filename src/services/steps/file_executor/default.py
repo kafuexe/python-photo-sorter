@@ -1,8 +1,10 @@
 import shutil
 from pathlib import Path
 
+from .base import BaseFileExecutor
 
-class FileExecutor:
+
+class FileExecutor(BaseFileExecutor):
     def execute(self, source: Path, dest: Path, action: str) -> None:
         """Move or copy file. Creates parent directories as needed.
         Handles filename collisions by appending incrementing suffix."""
