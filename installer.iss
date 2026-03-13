@@ -15,7 +15,7 @@ PrivilegesRequired=lowest
 
 [Files]
 Source: "dist\PhotoSorter.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "config.json"; DestDir: "{app}"; Flags: uninsneveruninstall
+Source: "config.json"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall
 
 [Dirs]
 Name: "{app}\move-log"; Flags: uninsneveruninstall

@@ -42,6 +42,10 @@ jobs:
       - name: Build exe
         run: pyinstaller photo_sorter.spec --clean -y
 
+      - name: Create default config
+        run: |
+          echo '{"input_dir": "", "output_dir": "", "date_format": "%%d%%m%%Y", "selected_extensions": ["avi", "flv", "heic", "jpeg", "jpg", "mkv", "mov", "mp4", "png", "tif", "tiff", "webp", "wmv"], "handle_unknown": true}' > config.json
+
       - name: Build installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
