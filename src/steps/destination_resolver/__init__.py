@@ -1,4 +1,4 @@
 from .base import BaseDestinationResolver
-from .default import DestinationResolver
+from .date_resolver import DestinationResolver
 
 __all__ = ["BaseDestinationResolver", "DestinationResolver"]

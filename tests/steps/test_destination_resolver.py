@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.models.processing_config import ProcessingConfig
-from src.services.steps.destination_resolver import DestinationResolver, BaseDestinationResolver
+from src.steps.destination_resolver import DestinationResolver, BaseDestinationResolver
 
 
 def make_config(**overrides):

@@ -10,7 +10,7 @@ from src.handlers.pillow_exif_handler import PillowExifHandler
 from src.handlers.file_stat_handler import FileStatHandler
 from src.services.config_service import ConfigService
 from src.services.processing_service import ProcessingService
-from src.services.steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
+from src.steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from src.models.processing_config import ProcessingConfig
 
 

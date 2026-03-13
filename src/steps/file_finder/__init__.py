@@ -1,4 +1,4 @@
 from .base import BaseFileFinder
-from .default import FileFinder
+from .recursive_finder import FileFinder
 
 __all__ = ["BaseFileFinder", "FileFinder"]

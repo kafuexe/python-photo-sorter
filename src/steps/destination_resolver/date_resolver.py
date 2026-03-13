@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ....models.processing_config import ProcessingConfig
+from ...models.processing_config import ProcessingConfig
 from .base import BaseDestinationResolver
 
 

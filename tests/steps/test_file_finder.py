@@ -1,4 +1,4 @@
-from src.services.steps.file_finder import FileFinder, BaseFileFinder
+from src.steps.file_finder import FileFinder, BaseFileFinder
 
 
 class TestFileFinder:

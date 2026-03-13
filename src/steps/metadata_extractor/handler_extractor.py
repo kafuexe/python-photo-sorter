@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from ....handlers.registry import HandlerRegistry
+from ...handlers.registry import HandlerRegistry
 from .base import BaseMetadataExtractor
 
 logger = logging.getLogger(__name__)

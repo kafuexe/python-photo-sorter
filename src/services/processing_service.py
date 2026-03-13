@@ -3,10 +3,10 @@ from typing import Callable
 
 from ..models.file_result import FileResult
 from ..models.processing_config import ProcessingConfig
-from .steps.file_finder import BaseFileFinder
-from .steps.metadata_extractor import BaseMetadataExtractor
-from .steps.destination_resolver import BaseDestinationResolver
-from .steps.file_executor import BaseFileExecutor
+from ..steps.file_finder import BaseFileFinder
+from ..steps.metadata_extractor import BaseMetadataExtractor
+from ..steps.destination_resolver import BaseDestinationResolver
+from ..steps.file_executor import BaseFileExecutor
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
 from .handlers.pyexiftool_handler import PyExifToolHandler
 from .handlers.file_stat_handler import FileStatHandler
-from .services.steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
+from .steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
 

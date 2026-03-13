@@ -3,7 +3,7 @@ from pathlib import Path
 
 from src.handlers.base import BaseHandler
 from src.handlers.registry import HandlerRegistry
-from src.services.steps.metadata_extractor import MetadataExtractor, BaseMetadataExtractor
+from src.steps.metadata_extractor import MetadataExtractor, BaseMetadataExtractor
 
 
 class FakeDateHandler(BaseHandler):

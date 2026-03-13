@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from ....models.processing_config import ProcessingConfig
+from ...models.processing_config import ProcessingConfig
 
 
 class BaseDestinationResolver(ABC):
