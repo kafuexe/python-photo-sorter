@@ -1,18 +1,21 @@
 import tkinter as tk
+from tkinter import ttk
 
 
-class CheckbuttonGroup(tk.Frame):
+class CheckbuttonGroup(ttk.Frame):
     """Dynamic checkbutton group built from a set of extensions."""
 
-    def __init__(self, parent, extensions: set[str], **kwargs):
+    def __init__(self, parent, extensions: set[str], on_change=None, **kwargs):
         super().__init__(parent, **kwargs)
 
         self._vars: dict[str, tk.BooleanVar] = {}
 
-        for ext in sorted(extensions):
+        for i, ext in enumerate(sorted(extensions)):
             var = tk.BooleanVar(value=False)
-            cb = tk.Checkbutton(self, text=ext, variable=var)
-            cb.pack(side=tk.LEFT, padx=4)
+            if on_change:
+                var.trace_add("write", lambda *_: on_change())
+            cb = ttk.Checkbutton(self, text=f".{ext}", variable=var)
+            cb.grid(row=0, column=i, padx=(0, 12), sticky=tk.W)
             self._vars[ext] = var
 
     def get_selected(self) -> list[str]:
