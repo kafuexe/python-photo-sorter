@@ -1,12 +1,9 @@
 import logging
 import sys
-import threading
 import tkinter as tk
 import customtkinter as ctk
 from pathlib import Path
 
-from ..models.file_result import FileResult
-from ..models.processing_config import ProcessingConfig
 from ..services.config_service import ConfigService
 from ..services.log_service import LogService
 from ..services.processing_service import ProcessingService
@@ -16,6 +13,8 @@ from .theme import (BG, BG_SURFACE, BG_INPUT, FG, FG_DIM, FG_HEADING,
 from .format_help_window import show_format_help
 from .widgets.directory_entry import DirectoryEntry
 from .widgets.checkbutton_group import CheckbuttonGroup
+from .file_counter import FileCounter
+from .processing_controller import ProcessingController
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,6 @@ class AppWindow(ctk.CTk):
         self._processing_service = processing_service
         self._log_service = LogService()
         self._registry = registry
-        self._processing = False
 
         self.title("Photo Sorter")
         w, h = 850, 475
@@ -51,10 +49,8 @@ class AppWindow(ctk.CTk):
             self.iconphoto(True, icon)
             self._icon = icon  # prevent garbage collection
 
-        self._count_after_id = None
-        self._count_generation = 0
-
         self._build_ui()
+        self._init_controllers()
         self._load_config()
         self._last_saved_config: dict = {}
         self._start_autosave()
@@ -79,7 +75,7 @@ class AppWindow(ctk.CTk):
         dir_inner.pack(fill=tk.X, pady=(4, 0))
         dir_inner.grid_columnconfigure(0, weight=1)
 
-        self._input_dir = DirectoryEntry(dir_inner, "Source:", on_change=self._update_file_count)
+        self._input_dir = DirectoryEntry(dir_inner, "Source:", on_change=self._on_input_changed)
         self._input_dir.grid(row=0, column=0, sticky=tk.EW, padx=12, pady=(10, 4))
 
         self._output_dir = DirectoryEntry(dir_inner, "Output:")
@@ -154,7 +150,7 @@ class AppWindow(ctk.CTk):
         types_inner.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
 
         self._file_types = CheckbuttonGroup(types_inner, self._registry.get_all_extensions(),
-                                            on_change=self._update_file_count)
+                                            on_change=self._on_input_changed)
         self._file_types.pack(anchor=tk.W, padx=12, pady=10)
 
         # ── Progress ──
@@ -175,22 +171,19 @@ class AppWindow(ctk.CTk):
                                             text_color=FG_DIM)
         self._progress_label.grid(row=1, column=0, pady=(0, 6))
 
-        self._processed_count = 0
-        self._total_count = 0
-
         # ── Actions ──
         action_frame = ctk.CTkFrame(self, fg_color="transparent")
         action_frame.grid(row=4, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
 
         self._btn_copy = ctk.CTkButton(action_frame, text="Copy Files",
-                                       command=self._on_copy,
+                                       command=lambda: self._processor.start("copy"),
                                        fg_color=BG_SURFACE, hover_color=BORDER,
                                        text_color=FG, border_width=1, border_color=BORDER,
                                        width=110)
         self._btn_copy.pack(side=tk.RIGHT, padx=(8, 0))
 
         self._btn_move = ctk.CTkButton(action_frame, text="Move Files",
-                                       command=self._on_move,
+                                       command=lambda: self._processor.start("move"),
                                        fg_color=ACCENT, hover_color=ACCENT_HOVER,
                                        text_color="#11111b",
                                        font=ctk.CTkFont(size=13, weight="bold"),
@@ -215,54 +208,37 @@ class AppWindow(ctk.CTk):
                      text_color=FG_HEADING).pack(anchor=tk.W)
         return frame
 
-    # ── File count ─────────────────────────────────────────────
+    # ── Controllers ─────────────────────────────────────────────
 
-    def _update_file_count(self) -> None:
-        if self._processing:
-            return
-        if self._count_after_id is not None:
-            self.after_cancel(self._count_after_id)
-        self._count_after_id = self.after(300, self._run_file_count)
+    def _init_controllers(self) -> None:
+        self._processor = ProcessingController(
+            window=self,
+            processing_service=self._processing_service,
+            log_service=self._log_service,
+            get_input_dir=self._input_dir.get,
+            get_output_dir=self._output_dir.get,
+            get_extensions=self._file_types.get_selected,
+            get_format=self._format_var.get,
+            get_unknown=self._unknown_var.get,
+            btn_move=self._btn_move,
+            btn_copy=self._btn_copy,
+            progress_frame=self._progress_frame,
+            progress_bar=self._progress_bar,
+            progress_label=self._progress_label,
+            status_var=self._status_var,
+        )
 
-    def _run_file_count(self) -> None:
-        self._count_after_id = None
+        self._counter = FileCounter(
+            window=self,
+            file_count_var=self._file_count_var,
+            status_var=self._status_var,
+            get_input_dir=self._input_dir.get,
+            get_extensions=self._file_types.get_selected,
+            is_processing=lambda: self._processor.is_processing,
+        )
 
-        input_dir = self._input_dir.get()
-        extensions = self._file_types.get_selected()
-
-        if not input_dir or not Path(input_dir).is_dir() or not extensions:
-            self._file_count_var.set("Select a source directory and file types")
-            self._status_var.set("Ready")
-            return
-
-        ext_set = {f".{e.lower().lstrip('.')}" for e in extensions}
-        self._count_generation += 1
-        gen = self._count_generation
-        self._file_count_var.set("Scanning...")
-        threading.Thread(target=self._count_files, args=(input_dir, ext_set, gen), daemon=True).start()
-
-    _FILE_COUNT_LIMIT = 10_000
-
-    def _count_files(self, input_dir: str, ext_set: set, generation: int) -> None:
-        count = 0
-        for f in Path(input_dir).rglob("*"):
-            if generation != self._count_generation:
-                return  # superseded — stop disk work immediately
-            if f.is_file() and f.suffix.lower() in ext_set:
-                count += 1
-                if count >= self._FILE_COUNT_LIMIT:
-                    self.after(0, self._on_count_done, count, generation)
-                    return
-        self.after(0, self._on_count_done, count, generation)
-
-    def _on_count_done(self, count: int, generation: int) -> None:
-        if generation != self._count_generation:
-            return
-        if count >= self._FILE_COUNT_LIMIT:
-            self._file_count_var.set(f"Found {count:,}+ files")
-        else:
-            self._file_count_var.set(f"Found {count} file{'s' if count != 1 else ''}")
-        self._status_var.set("Ready")
+    def _on_input_changed(self) -> None:
+        self._counter.schedule()
 
     # ── Config persistence ─────────────────────────────────────
 
@@ -299,133 +275,12 @@ class AppWindow(ctk.CTk):
             logger.debug("Config auto-saved")
         self.after(10_000, self._autosave_tick)
 
-    # ── Processing ─────────────────────────────────────────────
-
-    def _build_config(self, action: str) -> ProcessingConfig:
-        return ProcessingConfig(
-            input_dir=Path(self._input_dir.get()),
-            output_dir=Path(self._output_dir.get()),
-            date_format=self._format_var.get(),
-            action=action,
-            selected_extensions=self._file_types.get_selected(),
-            handle_unknown=self._unknown_var.get(),
-        )
-
-    def _validate(self) -> bool:
-        from tkinter import messagebox
-
-        input_dir = self._input_dir.get()
-        output_dir = self._output_dir.get()
-
-        if not input_dir or not output_dir:
-            messagebox.showerror("Error", "Select input and output directories.")
-            return False
-
-        if not Path(input_dir).is_dir():
-            messagebox.showerror("Error", "Input directory does not exist.")
-            return False
-
-        if not self._file_types.get_selected():
-            messagebox.showerror("Error", "Select at least one file type.")
-            return False
-
-        return True
-
-    def _on_move(self) -> None:
-        self._start_processing("move")
-
-    def _on_copy(self) -> None:
-        self._start_processing("copy")
-
-    def _start_processing(self, action: str) -> None:
-        from tkinter import messagebox
-
-        if self._processing:
-            return
-
-        if not self._validate():
-            return
-
-        ok = messagebox.askyesno(
-            "Confirm",
-            f"Are you sure you want to {action} the selected files?",
-            default="no",
-        )
-        if not ok:
-            return
-
-        self._processing = True
-        self._btn_move.configure(state=tk.DISABLED)
-        self._btn_copy.configure(state=tk.DISABLED)
-        self._status_var.set("Processing...")
-
-        self._processed_count = 0
-        self._total_count = 0
-        self._progress_bar.set(0)
-        self._progress_label.configure(text="0/0")
-        self._progress_frame.grid()
-        logger.info("Starting %s operation", action)
-
-        self._current_config = self._build_config(action)
-
-        thread = threading.Thread(
-            target=self._run_processing,
-            args=(self._current_config,),
-            daemon=True,
-        )
-        thread.start()
-
-    def _run_processing(self, config: ProcessingConfig) -> None:
-        def on_progress(result: FileResult) -> None:
-            self.after(0, self._on_progress, result)
-
-        def on_total(total: int) -> None:
-            self.after(0, self._on_total, total)
-
-        results, stats = self._processing_service.process(config, on_progress=on_progress,
-                                                            on_total=on_total)
-        self.after(0, self._on_complete, results, stats)
-
-    def _on_total(self, total: int) -> None:
-        self._total_count = total
-        self._progress_label.configure(text=f"0/{total}")
-
-    def _on_progress(self, result: FileResult) -> None:
-        self._processed_count += 1
-        if self._total_count > 0:
-            self._progress_bar.set(self._processed_count / self._total_count)
-        self._progress_label.configure(text=f"{self._processed_count}/{self._total_count}")
-        self._status_var.set(f"Processing: {result.source.name} \u2014 {result.status}")
-
-    def _on_complete(self, results: list[FileResult], stats) -> None:
-        from tkinter import messagebox
-
-        self._processing = False
-        self._btn_move.configure(state=tk.NORMAL)
-        self._btn_copy.configure(state=tk.NORMAL)
-        self._progress_frame.grid_remove()
-
-        success = sum(1 for r in results if r.status == "success")
-        unknown = sum(1 for r in results if r.status == "unknown")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        errors = sum(1 for r in results if r.status == "error")
-
-        summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors. ({stats.total:.1f}s)"
-        self._status_var.set(summary)
-        logger.info(summary)
-
-        try:
-            log_path = self._log_service.write(self._current_config, results, stats)
-            summary += f"\n\nLog saved to:\n{log_path}"
-        except Exception as e:
-            logger.error("Failed to write log: %s", e)
-
-        messagebox.showinfo("Complete", summary)
+    # ── Lifecycle ──────────────────────────────────────────────
 
     def _on_closing(self) -> None:
         from tkinter import messagebox
 
-        if self._processing:
+        if self._processor.is_processing:
             messagebox.showwarning("Warning", "Processing is still running.")
             return
         self._save_config()
