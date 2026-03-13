@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
 
 jobs:
   test:
@@ -43,14 +43,9 @@ jobs:
         with:
           path: installer.iss
 
-      - name: Upload exe
-        uses: actions/upload-artifact@v4
+      - name: Create release
+        uses: softprops/action-gh-release@v2
         with:
-          name: PhotoSorter-exe
-          path: dist/PhotoSorter.exe
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: PhotoSorter-installer
-          path: dist/PhotoSorterSetup.exe
+          files: |
+            dist/PhotoSorter.exe
+            dist/PhotoSorterSetup.exe
