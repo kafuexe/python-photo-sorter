@@ -154,28 +154,9 @@ class AppWindow(ctk.CTk):
                                             on_change=self._update_file_count)
         self._file_types.pack(anchor=tk.W, padx=12, pady=10)
 
-        # ── Actions ──
-        action_frame = ctk.CTkFrame(self, fg_color="transparent")
-        action_frame.grid(row=3, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
-
-        self._btn_copy = ctk.CTkButton(action_frame, text="Copy Files",
-                                       command=self._on_copy,
-                                       fg_color=BG_SURFACE, hover_color=BORDER,
-                                       text_color=FG, border_width=1, border_color=BORDER,
-                                       width=110)
-        self._btn_copy.pack(side=tk.RIGHT, padx=(8, 0))
-
-        self._btn_move = ctk.CTkButton(action_frame, text="Move Files",
-                                       command=self._on_move,
-                                       fg_color=ACCENT, hover_color=ACCENT_HOVER,
-                                       text_color="#11111b",
-                                       font=ctk.CTkFont(size=13, weight="bold"),
-                                       width=120)
-        self._btn_move.pack(side=tk.RIGHT)
-
         # ── Progress ──
         self._progress_frame = ctk.CTkFrame(self, fg_color=BG_SURFACE, corner_radius=8, height=36)
-        self._progress_frame.grid(row=4, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
+        self._progress_frame.grid(row=3, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
         self._progress_frame.grid_remove()
         self._progress_frame.grid_columnconfigure(0, weight=1)
 
@@ -193,6 +174,25 @@ class AppWindow(ctk.CTk):
 
         self._processed_count = 0
         self._total_count = 0
+
+        # ── Actions ──
+        action_frame = ctk.CTkFrame(self, fg_color="transparent")
+        action_frame.grid(row=4, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
+
+        self._btn_copy = ctk.CTkButton(action_frame, text="Copy Files",
+                                       command=self._on_copy,
+                                       fg_color=BG_SURFACE, hover_color=BORDER,
+                                       text_color=FG, border_width=1, border_color=BORDER,
+                                       width=110)
+        self._btn_copy.pack(side=tk.RIGHT, padx=(8, 0))
+
+        self._btn_move = ctk.CTkButton(action_frame, text="Move Files",
+                                       command=self._on_move,
+                                       fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                                       text_color="#11111b",
+                                       font=ctk.CTkFont(size=13, weight="bold"),
+                                       width=120)
+        self._btn_move.pack(side=tk.RIGHT)
 
         # ── Status bar ──
         status_frame = ctk.CTkFrame(self, fg_color=BG_SURFACE, corner_radius=0)

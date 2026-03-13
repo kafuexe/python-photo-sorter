@@ -32,39 +32,45 @@ FORMAT_REFERENCE = [
     ]),
 ]
 
+MAX_WIDTH = 520
+MAX_HEIGHT = 600
+
 
 def show_format_help(parent) -> None:
     """Open the date format reference window."""
     win = ctk.CTkToplevel(parent)
     win.title("Date Format Reference")
-    win.resizable(False, False)
+    win.resizable(True, True)
     win.transient(parent)
     win.grab_set()
+    win.maxsize(MAX_WIDTH, MAX_HEIGHT)
 
-    pad = ctk.CTkFrame(win, fg_color=BG)
-    pad.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    # Scrollable content area
+    scroll = ctk.CTkScrollableFrame(win, fg_color=BG, width=MAX_WIDTH - 40,
+                                    scrollbar_button_color=BORDER,
+                                    scrollbar_button_hover_color=FG_DIM)
+    scroll.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
 
-    ctk.CTkLabel(pad, text="Date Format Codes",
+    ctk.CTkLabel(scroll, text="Date Format Codes",
                  font=ctk.CTkFont(size=18, weight="bold"),
                  text_color=FG_HEADING).pack(anchor=tk.W)
-    ctk.CTkLabel(pad, text="Use these codes in the format field. Slashes create subfolders.",
+    ctk.CTkLabel(scroll, text="Use these codes in the format field. Slashes create subfolders.",
                  font=ctk.CTkFont(size=12),
                  text_color=FG_DIM).pack(anchor=tk.W, pady=(2, 12))
 
     for section_name, codes in FORMAT_REFERENCE:
-        ctk.CTkLabel(pad, text=section_name,
+        ctk.CTkLabel(scroll, text=section_name,
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=FG_HEADING).pack(anchor=tk.W, pady=(8, 4))
 
-        table = ctk.CTkFrame(pad, fg_color="transparent")
+        table = ctk.CTkFrame(scroll, fg_color="transparent")
         table.pack(fill=tk.X, pady=(0, 4))
-        table.grid_columnconfigure(1, weight=1)
+        table.grid_columnconfigure(0, weight=1)
 
         for i, (code, desc, example) in enumerate(codes):
             row_bg = BG_SURFACE if i % 2 == 0 else BG
             row = ctk.CTkFrame(table, fg_color=row_bg, corner_radius=0)
             row.grid(row=i, column=0, columnspan=3, sticky=tk.EW)
-            table.grid_columnconfigure(0, weight=1)
 
             ctk.CTkLabel(row, text=code, font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
                          text_color=ACCENT, width=50, anchor=tk.W).pack(
@@ -76,21 +82,22 @@ def show_format_help(parent) -> None:
                          text_color=FG_DIM, anchor=tk.E).pack(
                 side=tk.RIGHT, padx=(0, 8), pady=3)
 
-    sep = ctk.CTkFrame(pad, height=1, fg_color=BORDER)
+    sep = ctk.CTkFrame(scroll, height=1, fg_color=BORDER)
     sep.pack(fill=tk.X, pady=(12, 8))
 
-    ctk.CTkLabel(pad, font=ctk.CTkFont(family="Consolas", size=11),
+    ctk.CTkLabel(scroll, font=ctk.CTkFont(family="Consolas", size=11),
                  text_color=FG_DIM, justify=tk.LEFT,
                  text="Tip:  %d = day,  %D = month/day/year (with slashes!)\n"
                       "       %m = month,  %M = minute  \u2014  case matters!").pack(anchor=tk.W)
 
-    ctk.CTkButton(pad, text="Close", command=win.destroy,
+    # Close button outside scroll area so it's always visible
+    ctk.CTkButton(win, text="Close", command=win.destroy,
                   fg_color=BG_SURFACE, hover_color=BORDER,
                   text_color=FG, border_width=1, border_color=BORDER,
-                  width=80).pack(anchor=tk.E, pady=(12, 0))
+                  width=80).pack(anchor=tk.E, padx=10, pady=10)
 
-    # Center on parent
-    win.update_idletasks()
-    x = parent.winfo_x() + (parent.winfo_width() - win.winfo_width()) // 2
-    y = parent.winfo_y() + (parent.winfo_height() - win.winfo_height()) // 2
-    win.geometry(f"+{x}+{y}")
+    # Set initial size and center on parent
+    w, h = MAX_WIDTH, MAX_HEIGHT
+    x = parent.winfo_x() + (parent.winfo_width() - w) // 2
+    y = parent.winfo_y() + (parent.winfo_height() - h) // 2
+    win.geometry(f"{w}x{h}+{x}+{y}")
