@@ -39,9 +39,9 @@ jobs:
         run: pyinstaller photo_sorter.spec --clean -y
 
       - name: Build installer
-        uses: jrsoftware/iscc-action@v1
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
-          script-path: installer.iss
+          path: installer.iss
 
       - name: Upload exe
         uses: actions/upload-artifact@v4
