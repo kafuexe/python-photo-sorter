@@ -1,11 +1,12 @@
 import logging
+import signal
+import sys
 
 from .services.config_service import ConfigService
 from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
 from .handlers.exifread_handler import ExifReadHandler
 from .handlers.pyexiftool_handler import PyExifToolHandler
-from .handlers.file_stat_handler import FileStatHandler
 from .steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
@@ -30,7 +31,6 @@ def main():
     registry.register(PillowExifHandler())
     registry.register(ExifReadHandler())
     registry.register(PyExifToolHandler())
-    registry.register(FileStatHandler())
 
     # 3. Pipeline steps
     file_finder = FileFinder()
@@ -48,7 +48,27 @@ def main():
 
     # 5. UI
     app = AppWindow(config_service, processing_service, registry)
-    app.mainloop()
+
+    def safe_exit(*_):
+        logger.info("Interrupted — saving config before exit")
+        try:
+            app._save_config()
+        except Exception:
+            pass
+        app.destroy()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, safe_exit)
+
+    try:
+        app.mainloop()
+    except Exception:
+        logger.exception("Unexpected crash — saving config before exit")
+        try:
+            app._save_config()
+        except Exception:
+            pass
+        sys.exit(1)
 
 
 if __name__ == "__main__":
