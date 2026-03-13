@@ -7,7 +7,6 @@ from PIL.ExifTags import Base as ExifBase
 
 from src.handlers.registry import HandlerRegistry
 from src.handlers.pillow_exif_handler import PillowExifHandler
-from src.handlers.file_stat_handler import FileStatHandler
 from src.services.config_service import ConfigService
 from src.services.processing_service import ProcessingService
 from src.steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
@@ -17,7 +16,6 @@ from src.models.processing_config import ProcessingConfig
 def _make_pipeline():
     registry = HandlerRegistry()
     registry.register(PillowExifHandler())
-    registry.register(FileStatHandler())
 
     return ProcessingService(
         file_finder=FileFinder(),
@@ -97,7 +95,7 @@ class TestE2EMoveWithExif:
 
 
 class TestE2ENoExifFallbackToFileStat:
-    def test_uses_file_date(self, tmp_path):
+    def test_no_exif_treated_as_unknown(self, tmp_path):
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
         input_dir.mkdir()
@@ -118,35 +116,22 @@ class TestE2ENoExifFallbackToFileStat:
         results = service.process(config)
 
         assert len(results) == 1
-        # FileStatHandler provides a date, so it should be "success" not "unknown"
-        assert results[0].status == "success"
-        assert results[0].metadata.get("date") is not None
+        assert results[0].status == "unknown"
+        assert results[0].metadata.get("date") is None
         assert results[0].destination.exists()
 
 
 class TestE2EUnknownHandling:
     def test_unknown_files_moved_to_unknown_folder(self, tmp_path):
-        """When no handler returns a date (simulated by using non-image files),
-        files go to the unknown folder."""
+        """When no handler returns a date, files go to the unknown folder."""
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
         input_dir.mkdir()
         output_dir.mkdir()
 
-        # txt file - FileFinder will find it if we include "txt"
         (input_dir / "notes.txt").write_text("hello")
 
-        # Build pipeline without FileStatHandler to simulate no date
-        registry = HandlerRegistry()
-        registry.register(PillowExifHandler())
-        # No FileStatHandler = no fallback date
-
-        service = ProcessingService(
-            file_finder=FileFinder(),
-            metadata_extractor=MetadataExtractor(registry),
-            destination_resolver=DestinationResolver(),
-            file_executor=FileExecutor(),
-        )
+        service, _ = _make_pipeline()
         config = ProcessingConfig(
             input_dir=input_dir,
             output_dir=output_dir,
@@ -194,7 +179,7 @@ class TestE2EUnknownHandling:
 
 
 class TestE2EFilenameCollisions:
-    def test_duplicate_filenames_get_suffixed(self, tmp_path):
+    def test_duplicate_filenames_skip_second(self, tmp_path):
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
         input_dir.mkdir()
@@ -221,14 +206,14 @@ class TestE2EFilenameCollisions:
         results = service.process(config)
 
         assert len(results) == 2
-        assert all(r.status == "success" for r in results)
+        statuses = [r.status for r in results]
+        assert statuses.count("success") == 1
+        assert statuses.count("skipped") == 1
 
         dest_dir = output_dir / "2024" / "01" / "01"
-        files = sorted(dest_dir.iterdir())
-        assert len(files) == 2
-        names = {f.name for f in files}
-        assert "photo.jpg" in names
-        assert "photo (2).jpg" in names
+        files = list(dest_dir.iterdir())
+        assert len(files) == 1
+        assert files[0].name == "photo.jpg"
 
 
 class TestE2EExtensionFiltering:

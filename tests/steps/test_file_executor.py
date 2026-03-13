@@ -12,7 +12,7 @@ class TestFileExecutor:
         src.write_bytes(b"image data")
         dest = tmp_path / "out" / "photo.jpg"
 
-        FileExecutor().execute(src, dest, "copy")
+        assert FileExecutor().execute(src, dest, "copy") is True
 
         assert dest.exists()
         assert dest.read_bytes() == b"image data"
@@ -23,7 +23,7 @@ class TestFileExecutor:
         src.write_bytes(b"image data")
         dest = tmp_path / "out" / "photo.jpg"
 
-        FileExecutor().execute(src, dest, "move")
+        assert FileExecutor().execute(src, dest, "move") is True
 
         assert dest.exists()
         assert dest.read_bytes() == b"image data"
@@ -37,7 +37,7 @@ class TestFileExecutor:
         FileExecutor().execute(src, dest, "copy")
         assert dest.exists()
 
-    def test_collision_appends_suffix(self, tmp_path):
+    def test_skips_when_dest_exists(self, tmp_path):
         src1 = tmp_path / "s1.jpg"
         src2 = tmp_path / "s2.jpg"
         src1.write_bytes(b"first")
@@ -45,25 +45,21 @@ class TestFileExecutor:
 
         dest = tmp_path / "out" / "photo.jpg"
         ex = FileExecutor()
-        ex.execute(src1, dest, "copy")
-        ex.execute(src2, dest, "copy")
+        assert ex.execute(src1, dest, "copy") is True
+        assert ex.execute(src2, dest, "copy") is False
 
-        assert dest.exists()
-        assert dest.read_bytes() == b"first"
-        collision = tmp_path / "out" / "photo (2).jpg"
-        assert collision.exists()
-        assert collision.read_bytes() == b"second"
+        assert dest.read_bytes() == b"first"  # original untouched
+        assert src2.exists()  # source not moved
 
-    def test_multiple_collisions(self, tmp_path):
+    def test_skips_do_not_create_suffixed_files(self, tmp_path):
         dest = tmp_path / "out" / "photo.jpg"
         ex = FileExecutor()
 
-        for i in range(4):
+        for i in range(3):
             src = tmp_path / f"s{i}.jpg"
             src.write_bytes(f"data{i}".encode())
             ex.execute(src, dest, "copy")
 
         assert (tmp_path / "out" / "photo.jpg").exists()
-        assert (tmp_path / "out" / "photo (2).jpg").exists()
-        assert (tmp_path / "out" / "photo (3).jpg").exists()
-        assert (tmp_path / "out" / "photo (4).jpg").exists()
+        assert not (tmp_path / "out" / "photo (2).jpg").exists()
+        assert not (tmp_path / "out" / "photo (3).jpg").exists()

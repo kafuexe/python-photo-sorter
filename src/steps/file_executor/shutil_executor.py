@@ -8,10 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 class FileExecutor(BaseFileExecutor):
-    def execute(self, source: Path, dest: Path, action: str) -> None:
+    def execute(self, source: Path, dest: Path, action: str) -> bool:
         """Move or copy file. Creates parent directories as needed.
-        Handles filename collisions by appending incrementing suffix."""
-        dest = self._resolve_collision(dest)
+        Returns False if destination already exists (skip)."""
+        if dest.exists():
+            logger.debug("Skipped (exists): %s", dest)
+            return False
+
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         if action == "move":
@@ -20,19 +23,4 @@ class FileExecutor(BaseFileExecutor):
             shutil.copy2(str(source), str(dest))
 
         logger.debug("%s: %s -> %s", action.capitalize(), source, dest)
-
-    @staticmethod
-    def _resolve_collision(dest: Path) -> Path:
-        if not dest.exists():
-            return dest
-
-        stem = dest.stem
-        suffix = dest.suffix
-        parent = dest.parent
-        counter = 2
-
-        while True:
-            new_dest = parent / f"{stem} ({counter}){suffix}"
-            if not new_dest.exists():
-                return new_dest
-            counter += 1
+        return True

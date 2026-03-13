@@ -43,12 +43,12 @@ class ProcessingService:
 
                 if dest is None:
                     result.status = "skipped"
+                elif not self._file_executor.execute(file_path, dest, config.action):
+                    result.status = "skipped"
                 elif not metadata.get("date") and config.handle_unknown:
-                    self._file_executor.execute(file_path, dest, config.action)
                     result.destination = dest
                     result.status = "unknown"
                 else:
-                    self._file_executor.execute(file_path, dest, config.action)
                     result.destination = dest
                     result.status = "success"
 
