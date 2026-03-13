@@ -44,7 +44,7 @@ class TestProcessingService:
         service, finder, _, _, _ = self._make_service(files=[])
         config = make_config(tmp_path)
 
-        results = service.process(config)
+        results, stats = service.process(config)
         assert results == []
         finder.find.assert_called_once()
 
@@ -60,7 +60,7 @@ class TestProcessingService:
         )
         config = make_config(tmp_path)
 
-        results = service.process(config)
+        results, stats = service.process(config)
         assert len(results) == 1
         assert results[0].status == "success"
         assert results[0].destination == dest
@@ -74,7 +74,7 @@ class TestProcessingService:
         )
         config = make_config(tmp_path, handle_unknown=False)
 
-        results = service.process(config)
+        results, stats = service.process(config)
         assert len(results) == 1
         assert results[0].status == "skipped"
         executor.execute.assert_not_called()
@@ -88,7 +88,7 @@ class TestProcessingService:
         )
         config = make_config(tmp_path, handle_unknown=True)
 
-        results = service.process(config)
+        results, stats = service.process(config)
         assert len(results) == 1
         assert results[0].status == "unknown"
         executor.execute.assert_called_once()
@@ -102,7 +102,7 @@ class TestProcessingService:
         executor.execute.side_effect = OSError("disk full")
         config = make_config(tmp_path)
 
-        results = service.process(config)
+        results, stats = service.process(config)
         assert len(results) == 1
         assert results[0].status == "error"
         assert "disk full" in results[0].error
@@ -116,7 +116,7 @@ class TestProcessingService:
         config = make_config(tmp_path)
 
         progress_calls = []
-        results = service.process(config, on_progress=progress_calls.append)
+        results, stats = service.process(config, on_progress=progress_calls.append)
         assert len(progress_calls) == 2
         assert len(results) == 2
 
@@ -129,5 +129,70 @@ class TestProcessingService:
         )
         config = make_config(tmp_path)
 
-        results = service.process(config)
+        results, stats = service.process(config)
         assert len(results) == 5
+
+    def test_returns_timing_stats(self, tmp_path):
+        files = [Path(f"/in/photo{i}.jpg") for i in range(3)]
+        service, _, _, _, _ = self._make_service(
+            files=files,
+            metadata={"date": datetime(2024, 1, 1)},
+            dest=Path("/out/photo.jpg"),
+        )
+        config = make_config(tmp_path)
+
+        results, stats = service.process(config)
+
+        assert stats.file_count == 3
+        assert stats.total > 0
+        assert stats.find >= 0
+        assert stats.extract >= 0
+        assert stats.resolve >= 0
+        assert stats.execute >= 0
+        assert len(stats.per_file) == 3
+
+    def test_timing_summary_string(self, tmp_path):
+        files = [Path("/in/photo.jpg")]
+        service, _, _, _, _ = self._make_service(
+            files=files,
+            metadata={"date": datetime(2024, 1, 1)},
+            dest=Path("/out/photo.jpg"),
+        )
+        config = make_config(tmp_path)
+
+        _, stats = service.process(config)
+        summary = stats.summary()
+
+        assert "Total time:" in summary
+        assert "File discovery:" in summary
+        assert "Metadata extract:" in summary
+        assert "File execute:" in summary
+
+    def test_slowest_returns_sorted(self, tmp_path):
+        files = [Path(f"/in/photo{i}.jpg") for i in range(3)]
+        service, _, _, _, _ = self._make_service(
+            files=files,
+            metadata={"date": datetime(2024, 1, 1)},
+            dest=Path("/out/photo.jpg"),
+        )
+        config = make_config(tmp_path)
+
+        _, stats = service.process(config)
+        slowest = stats.slowest(2)
+
+        assert len(slowest) <= 2
+        if len(slowest) == 2:
+            t0 = slowest[0]["extract"] + slowest[0]["resolve"] + slowest[0]["execute"]
+            t1 = slowest[1]["extract"] + slowest[1]["resolve"] + slowest[1]["execute"]
+            assert t0 >= t1
+
+    def test_empty_stats(self, tmp_path):
+        service, _, _, _, _ = self._make_service(files=[])
+        config = make_config(tmp_path)
+
+        _, stats = service.process(config)
+
+        assert stats.file_count == 0
+        assert stats.total >= 0
+        assert len(stats.per_file) == 0
+        assert stats.slowest(5) == []

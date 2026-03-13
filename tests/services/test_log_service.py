@@ -3,6 +3,7 @@ from pathlib import Path
 from src.models.file_result import FileResult
 from src.models.processing_config import ProcessingConfig
 from src.services.log_service import LogService
+from src.services.processing_service import TimingStats
 
 
 def _make_config(**overrides) -> ProcessingConfig:
@@ -142,3 +143,31 @@ class TestLogService:
 
         assert path1 != path2
         assert len(list(tmp_path.glob("*.txt"))) == 2
+
+    def test_log_includes_timing_when_provided(self, tmp_path):
+        svc = LogService(log_dir=tmp_path)
+        stats = TimingStats(
+            find=0.05, extract=1.2, resolve=0.01, execute=0.8,
+            total=2.06, file_count=3,
+        )
+        stats.record("a.jpg", 0.5, 0.005, 0.3)
+        stats.record("b.jpg", 0.4, 0.003, 0.2)
+        stats.record("c.jpg", 0.3, 0.002, 0.3)
+
+        path = svc.write(_make_config(), [], stats)
+        content = path.read_text(encoding="utf-8")
+
+        assert "=== Timing ===" in content
+        assert "Total time:" in content
+        assert "File discovery:" in content
+        assert "Metadata extract:" in content
+        assert "=== Slowest Files ===" in content
+        assert "a.jpg" in content
+
+    def test_log_omits_timing_when_not_provided(self, tmp_path):
+        svc = LogService(log_dir=tmp_path)
+        path = svc.write(_make_config(), [])
+        content = path.read_text(encoding="utf-8")
+
+        assert "=== Timing ===" not in content
+        assert "=== Slowest Files ===" not in content

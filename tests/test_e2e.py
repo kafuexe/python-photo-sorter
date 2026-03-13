@@ -57,7 +57,7 @@ class TestE2ECopyWithExif:
             handle_unknown=True,
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 2
         assert all(r.status == "success" for r in results)
@@ -86,7 +86,7 @@ class TestE2EMoveWithExif:
             selected_extensions=["jpg"],
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 1
         assert results[0].status == "success"
@@ -113,7 +113,7 @@ class TestE2ENoExifFallbackToFileStat:
             handle_unknown=True,
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 1
         assert results[0].status == "unknown"
@@ -142,7 +142,7 @@ class TestE2EUnknownHandling:
             unknown_folder_name=".nodate",
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 1
         assert results[0].status == "unknown"
@@ -171,7 +171,7 @@ class TestE2EUnknownHandling:
             handle_unknown=False,
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 1
         assert results[0].status == "skipped"
@@ -203,7 +203,7 @@ class TestE2EFilenameCollisions:
             selected_extensions=["jpg"],
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 2
         statuses = [r.status for r in results]
@@ -235,7 +235,7 @@ class TestE2EExtensionFiltering:
             selected_extensions=["jpg"],  # only jpg
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert len(results) == 1
         assert results[0].source.name == "include.jpg"
@@ -259,7 +259,7 @@ class TestE2ECustomDateFormat:
             selected_extensions=["jpg"],
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert (output_dir / "20240615" / "photo.jpg").exists()
 
@@ -280,7 +280,7 @@ class TestE2ECustomDateFormat:
             selected_extensions=["jpg"],
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
 
         assert (output_dir / "2024-06" / "photo.jpg").exists()
 
@@ -305,7 +305,7 @@ class TestE2EProgressCallback:
         )
 
         progress = []
-        results = service.process(config, on_progress=progress.append)
+        results, _ = service.process(config, on_progress=progress.append)
 
         assert len(progress) == 3
         assert len(results) == 3
@@ -354,7 +354,7 @@ class TestE2EEmptyInput:
             selected_extensions=["jpg"],
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
         assert results == []
 
     def test_nonexistent_input(self, tmp_path):
@@ -366,5 +366,5 @@ class TestE2EEmptyInput:
             selected_extensions=["jpg"],
         )
 
-        results = service.process(config)
+        results, _ = service.process(config)
         assert results == []

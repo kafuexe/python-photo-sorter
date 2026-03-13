@@ -352,9 +352,9 @@ class AppWindow(ctk.CTk):
         def on_total(total: int) -> None:
             self.after(0, self._on_total, total)
 
-        results = self._processing_service.process(config, on_progress=on_progress,
-                                                   on_total=on_total)
-        self.after(0, self._on_complete, results)
+        results, stats = self._processing_service.process(config, on_progress=on_progress,
+                                                            on_total=on_total)
+        self.after(0, self._on_complete, results, stats)
 
     def _on_total(self, total: int) -> None:
         self._total_count = total
@@ -367,7 +367,7 @@ class AppWindow(ctk.CTk):
         self._progress_label.configure(text=f"{self._processed_count}/{self._total_count}")
         self._status_var.set(f"Processing: {result.source.name} \u2014 {result.status}")
 
-    def _on_complete(self, results: list[FileResult]) -> None:
+    def _on_complete(self, results: list[FileResult], stats) -> None:
         from tkinter import messagebox
 
         self._processing = False
@@ -381,11 +381,12 @@ class AppWindow(ctk.CTk):
         errors = sum(1 for r in results if r.status == "error")
 
         summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors."
+        summary += f"\nCompleted in {stats.total:.1f}s"
         self._status_var.set(summary)
         logger.info(summary)
 
         try:
-            log_path = self._log_service.write(self._current_config, results)
+            log_path = self._log_service.write(self._current_config, results, stats)
             summary += f"\n\nLog saved to:\n{log_path}"
         except Exception as e:
             logger.error("Failed to write log: %s", e)

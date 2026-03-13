@@ -21,7 +21,8 @@ class LogService:
     def __init__(self, log_dir: Path | None = None):
         self._log_dir = log_dir or (_base_dir() / LOG_DIR_NAME)
 
-    def write(self, config: ProcessingConfig, results: list[FileResult]) -> Path:
+    def write(self, config: ProcessingConfig, results: list[FileResult],
+              stats=None) -> Path:
         self._log_dir.mkdir(parents=True, exist_ok=True)
 
         now = datetime.now()
@@ -53,6 +54,23 @@ class LogService:
         lines.append("=== Summary ===")
         lines.append(f"  Total: {len(results)}  |  Success: {success}  |  Unknown: {unknown}  |  Skipped: {skipped}  |  Errors: {errors}")
         lines.append("")
+
+        # Timing
+        if stats is not None:
+            lines.append("=== Timing ===")
+            lines.append(stats.summary())
+            lines.append("")
+
+            slowest = stats.slowest(10)
+            if slowest:
+                lines.append("=== Slowest Files ===")
+                for f in slowest:
+                    total = f["extract"] + f["resolve"] + f["execute"]
+                    lines.append(
+                        f"  {total:.3f}s  {f['file']}"
+                        f"  (extract={f['extract']:.3f}s  resolve={f['resolve']:.3f}s  execute={f['execute']:.3f}s)"
+                    )
+                lines.append("")
 
         # File list
         lines.append("=== Files ===")
