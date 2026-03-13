@@ -38,7 +38,7 @@ class AppWindow(ctk.CTk):
         self._processing = False
 
         self.title("Photo Sorter")
-        w, h = 850, 450
+        w, h = 850, 475
         self.minsize(w, h)
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
@@ -50,6 +50,9 @@ class AppWindow(ctk.CTk):
             icon = tk.PhotoImage(file=str(icon_path))
             self.iconphoto(True, icon)
             self._icon = icon  # prevent garbage collection
+
+        self._count_after_id = None
+        self._count_generation = 0
 
         self._build_ui()
         self._load_config()
@@ -217,6 +220,12 @@ class AppWindow(ctk.CTk):
     def _update_file_count(self) -> None:
         if self._processing:
             return
+        if self._count_after_id is not None:
+            self.after_cancel(self._count_after_id)
+        self._count_after_id = self.after(300, self._run_file_count)
+
+    def _run_file_count(self) -> None:
+        self._count_after_id = None
 
         input_dir = self._input_dir.get()
         extensions = self._file_types.get_selected()
@@ -227,11 +236,32 @@ class AppWindow(ctk.CTk):
             return
 
         ext_set = {f".{e.lower().lstrip('.')}" for e in extensions}
-        count = sum(
-            1 for f in Path(input_dir).rglob("*")
-            if f.is_file() and f.suffix.lower() in ext_set
-        )
-        self._file_count_var.set(f"Found {count} file{'s' if count != 1 else ''}")
+        self._count_generation += 1
+        gen = self._count_generation
+        self._file_count_var.set("Scanning...")
+        threading.Thread(target=self._count_files, args=(input_dir, ext_set, gen), daemon=True).start()
+
+    _FILE_COUNT_LIMIT = 10_000
+
+    def _count_files(self, input_dir: str, ext_set: set, generation: int) -> None:
+        count = 0
+        for f in Path(input_dir).rglob("*"):
+            if generation != self._count_generation:
+                return  # superseded — stop disk work immediately
+            if f.is_file() and f.suffix.lower() in ext_set:
+                count += 1
+                if count >= self._FILE_COUNT_LIMIT:
+                    self.after(0, self._on_count_done, count, generation)
+                    return
+        self.after(0, self._on_count_done, count, generation)
+
+    def _on_count_done(self, count: int, generation: int) -> None:
+        if generation != self._count_generation:
+            return
+        if count >= self._FILE_COUNT_LIMIT:
+            self._file_count_var.set(f"Found {count:,}+ files")
+        else:
+            self._file_count_var.set(f"Found {count} file{'s' if count != 1 else ''}")
         self._status_var.set("Ready")
 
     # ── Config persistence ─────────────────────────────────────
@@ -380,8 +410,7 @@ class AppWindow(ctk.CTk):
         skipped = sum(1 for r in results if r.status == "skipped")
         errors = sum(1 for r in results if r.status == "error")
 
-        summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors."
-        summary += f"\nCompleted in {stats.total:.1f}s"
+        summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors. ({stats.total:.1f}s)"
         self._status_var.set(summary)
         logger.info(summary)
 
