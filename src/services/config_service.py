@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 from pathlib import Path
 
 from ..errors.exceptions import ConfigError
@@ -19,7 +20,11 @@ DEFAULTS = {
 class ConfigService:
     def __init__(self, config_path: Path | None = None):
         if config_path is None:
-            config_path = Path(__file__).resolve().parents[2] / "config.json"
+            if getattr(sys, 'frozen', False):
+                # Running as bundled exe — save next to the exe
+                config_path = Path(sys.executable).parent / "config.json"
+            else:
+                config_path = Path(__file__).resolve().parents[2] / "config.json"
         self._config_path = config_path
 
     def load(self) -> dict:
