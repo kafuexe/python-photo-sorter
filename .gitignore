@@ -1,4 +1,6 @@
 .idea
+config.json
+move-log/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
