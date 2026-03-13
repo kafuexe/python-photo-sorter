@@ -15,7 +15,7 @@ class DirectoryEntry(ttk.Frame):
         self._label.grid(row=0, column=0, padx=(0, 8), sticky=tk.E)
 
         self._var = tk.StringVar()
-        self._entry = ttk.Entry(self, textvariable=self._var)
+        self._entry = ttk.Entry(self, textvariable=self._var, font=("Segoe UI", 11))
         self._entry.grid(row=0, column=1, sticky=tk.EW, padx=(0, 8))
 
         self._button = ttk.Button(self, text="Browse...", command=self._browse, width=10)

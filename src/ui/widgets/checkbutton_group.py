@@ -3,29 +3,32 @@ from tkinter import ttk
 
 
 class CheckbuttonGroup(ttk.Frame):
-    """Dynamic checkbutton group built from a set of extensions."""
+    """Dynamic checkbutton group that wraps to multiple rows."""
 
-    def __init__(self, parent, extensions: set[str], on_change=None, **kwargs):
+    def __init__(self, parent, extensions: set[str], on_change=None, columns=4, **kwargs):
         super().__init__(parent, **kwargs)
 
         self._on_change = on_change
         self._updating = False
         self._vars: dict[str, tk.BooleanVar] = {}
 
-        # "All" toggle
+        # "All" toggle on its own row
         self._all_var = tk.BooleanVar(value=False)
         self._all_var.trace_add("write", lambda *_: self._on_all_toggled())
         all_cb = ttk.Checkbutton(self, text="All", variable=self._all_var)
-        all_cb.grid(row=0, column=0, padx=(0, 16), sticky=tk.W)
+        all_cb.grid(row=0, column=0, padx=(0, 12), pady=(0, 4), sticky=tk.W)
 
-        ttk.Separator(self, orient=tk.VERTICAL).grid(row=0, column=1, sticky=tk.NS, padx=(0, 12))
+        ttk.Separator(self, orient=tk.HORIZONTAL).grid(
+            row=1, column=0, columnspan=columns, sticky=tk.EW, pady=(0, 6))
 
-        # Individual extension checkbuttons
+        # Individual extension checkbuttons in a grid
         for i, ext in enumerate(sorted(extensions)):
             var = tk.BooleanVar(value=False)
             var.trace_add("write", lambda *_: self._on_item_toggled())
             cb = ttk.Checkbutton(self, text=f".{ext}", variable=var)
-            cb.grid(row=0, column=i + 2, padx=(0, 12), sticky=tk.W)
+            row = (i // columns) + 2
+            col = i % columns
+            cb.grid(row=row, column=col, padx=(0, 12), pady=2, sticky=tk.W)
             self._vars[ext] = var
 
     def _on_all_toggled(self) -> None:

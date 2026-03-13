@@ -90,7 +90,7 @@ class AppWindow(tk.Tk):
         s.theme_use("clam")
 
         s.configure(".", background=BG, foreground=FG, borderwidth=0,
-                     font=("Segoe UI", 10))
+                     font=("Segoe UI", 11))
 
         # Frames & label-frames
         s.configure("TFrame", background=BG)
@@ -137,7 +137,7 @@ class AppWindow(tk.Tk):
 
         # Checkbuttons
         s.configure("TCheckbutton", background=BG, foreground=FG,
-                     font=("Segoe UI", 9))
+                     font=("Segoe UI", 10))
         s.map("TCheckbutton", background=[("active", BG)])
 
         # Progressbar
@@ -187,11 +187,11 @@ class AppWindow(tk.Tk):
                                            style="FileCount.TLabel")
         self._file_count_label.pack(anchor=tk.W)
 
-        # ── Settings row: format + file types side by side ──
+        # ── Settings row: format (35%) + file types (65%) ──
         settings_frame = ttk.Frame(self)
         settings_frame.grid(row=4, column=0, sticky=tk.EW, padx=20, pady=(0, 4))
-        settings_frame.columnconfigure(0, weight=1)
-        settings_frame.columnconfigure(1, weight=1)
+        settings_frame.columnconfigure(0, weight=60, uniform="settings")
+        settings_frame.columnconfigure(1, weight=40, uniform="settings")
 
         # Date format
         fmt_frame = ttk.LabelFrame(settings_frame, text="  Date Format  ", padding=12)
@@ -203,7 +203,7 @@ class AppWindow(tk.Tk):
         fmt_row.columnconfigure(0, weight=1)
 
         self._format_var = tk.StringVar(value="%Y/%m/%d")
-        fmt_entry = ttk.Entry(fmt_row, textvariable=self._format_var, font=("Consolas", 11))
+        fmt_entry = ttk.Entry(fmt_row, textvariable=self._format_var, font=("Consolas", 12))
         fmt_entry.grid(row=0, column=0, sticky=tk.EW, padx=(0, 6))
 
         help_btn = ttk.Button(fmt_row, text="?", width=3, command=self._show_format_help)
@@ -211,25 +211,25 @@ class AppWindow(tk.Tk):
 
         ttk.Label(fmt_frame, text=FORMAT_HINT, style="Help.TLabel").pack(anchor=tk.W)
 
+        # Options (under date format, same column)
+        opts_frame = ttk.LabelFrame(settings_frame, text="  Options  ", padding=12)
+        opts_frame.grid(row=1, column=0, sticky=tk.NSEW, padx=(0, 6), pady=(6, 0))
+
+        self._unknown_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opts_frame, text="Move unknown dates to separate folder",
+                        variable=self._unknown_var).pack(anchor=tk.W)
+
         # File types
         types_frame = ttk.LabelFrame(settings_frame, text="  File Types  ", padding=12)
-        types_frame.grid(row=0, column=1, sticky=tk.NSEW, padx=(6, 0))
+        types_frame.grid(row=0, column=1, rowspan=2, sticky=tk.NSEW, padx=(6, 0))
 
         self._file_types = CheckbuttonGroup(types_frame, self._registry.get_all_extensions(),
                                             on_change=self._update_file_count)
         self._file_types.pack(anchor=tk.W)
 
-        # ── Options ──
-        opts_frame = ttk.LabelFrame(self, text="  Options  ", padding=12)
-        opts_frame.grid(row=5, column=0, sticky=tk.EW, **pad)
-
-        self._unknown_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(opts_frame, text="Move files with unknown dates to separate folder",
-                        variable=self._unknown_var).pack(anchor=tk.W)
-
         # ── Actions ──
         action_frame = ttk.Frame(self)
-        action_frame.grid(row=6, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
+        action_frame.grid(row=5, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
 
         self._btn_copy = ttk.Button(action_frame, text="Copy Files",
                                     command=self._on_copy, style="TButton")
@@ -240,27 +240,19 @@ class AppWindow(tk.Tk):
         self._btn_move.pack(side=tk.RIGHT)
 
         # ── Progress ──
-        progress_frame = ttk.Frame(self)
-        progress_frame.grid(row=7, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
-        progress_frame.grid_remove()
-        progress_frame.columnconfigure(0, weight=1)
-        self._progress_frame = progress_frame
-
-        self._progress = ttk.Progressbar(progress_frame, mode="determinate", style="TProgressbar")
-        self._progress.grid(row=0, column=0, sticky=tk.EW)
-
-        self._progress_text = tk.Label(progress_frame, text="0/0",
-                                       font=("Segoe UI Semibold", 9),
-                                       fg=FG, bg=BG, anchor=tk.CENTER)
-        self._progress_text.grid(row=0, column=0, sticky=tk.EW)
+        self._progress_canvas = tk.Canvas(self, height=28, bg=BG_SURFACE,
+                                          highlightthickness=1, highlightbackground=BORDER)
+        self._progress_canvas.grid(row=6, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
+        self._progress_canvas.grid_remove()
+        self._progress_canvas.bind("<Configure>", lambda e: self._draw_progress())
 
         self._processed_count = 0
         self._total_count = 0
 
         # ── Status bar ──
         status_frame = ttk.Frame(self, style="Surface.TFrame")
-        status_frame.grid(row=8, column=0, sticky=tk.EW + tk.S, padx=0, pady=(12, 0))
-        self.rowconfigure(8, weight=1)
+        status_frame.grid(row=7, column=0, sticky=tk.EW + tk.S, padx=0, pady=(12, 0))
+        self.rowconfigure(7, weight=1)
 
         self._status_var = tk.StringVar(value="Ready")
         ttk.Label(status_frame, textvariable=self._status_var,
@@ -439,9 +431,8 @@ class AppWindow(tk.Tk):
 
         self._processed_count = 0
         self._total_count = 0
-        self._progress["value"] = 0
-        self._progress_text.config(text="0/0")
-        self._progress_frame.grid()
+        self._progress_canvas.grid()
+        self._draw_progress()
         logger.info("Starting %s operation", action)
 
         config = self._build_config(action)
@@ -466,20 +457,38 @@ class AppWindow(tk.Tk):
 
     def _on_total(self, total: int) -> None:
         self._total_count = total
-        self._progress["maximum"] = total
-        self._progress_text.config(text=f"0/{total}")
+        self._draw_progress()
 
     def _on_progress(self, result: FileResult) -> None:
         self._processed_count += 1
-        self._progress["value"] = self._processed_count
-        self._progress_text.config(text=f"{self._processed_count}/{self._total_count}")
+        self._draw_progress()
         self._status_var.set(f"Processing: {result.source.name} \u2014 {result.status}")
+
+    def _draw_progress(self) -> None:
+        c = self._progress_canvas
+        c.delete("all")
+        w = c.winfo_width()
+        h = c.winfo_height()
+        if w <= 1:
+            return
+
+        # Green fill
+        if self._total_count > 0:
+            ratio = self._processed_count / self._total_count
+            fill_w = int(w * ratio)
+            if fill_w > 0:
+                c.create_rectangle(0, 0, fill_w, h, fill=SUCCESS, outline="")
+
+        # Text
+        text = f"{self._processed_count}/{self._total_count}"
+        c.create_text(w // 2, h // 2, text=text,
+                      font=("Segoe UI Semibold", 10), fill=FG)
 
     def _on_complete(self, results: list[FileResult]) -> None:
         self._processing = False
         self._btn_move.config(state=tk.NORMAL)
         self._btn_copy.config(state=tk.NORMAL)
-        self._progress_frame.grid_remove()
+        self._progress_canvas.grid_remove()
 
         success = sum(1 for r in results if r.status == "success")
         unknown = sum(1 for r in results if r.status == "unknown")
