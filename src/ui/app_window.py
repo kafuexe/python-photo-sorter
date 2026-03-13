@@ -8,6 +8,7 @@ from pathlib import Path
 from ..models.file_result import FileResult
 from ..models.processing_config import ProcessingConfig
 from ..services.config_service import ConfigService
+from ..services.log_service import LogService
 from ..services.processing_service import ProcessingService
 from ..handlers.registry import HandlerRegistry
 from .theme import (BG, BG_SURFACE, BG_INPUT, FG, FG_DIM, FG_HEADING,
@@ -32,6 +33,7 @@ class AppWindow(ctk.CTk):
 
         self._config_service = config_service
         self._processing_service = processing_service
+        self._log_service = LogService()
         self._registry = registry
         self._processing = False
 
@@ -334,11 +336,11 @@ class AppWindow(ctk.CTk):
         self._progress_frame.grid()
         logger.info("Starting %s operation", action)
 
-        config = self._build_config(action)
+        self._current_config = self._build_config(action)
 
         thread = threading.Thread(
             target=self._run_processing,
-            args=(config,),
+            args=(self._current_config,),
             daemon=True,
         )
         thread.start()
@@ -381,6 +383,12 @@ class AppWindow(ctk.CTk):
         summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors."
         self._status_var.set(summary)
         logger.info(summary)
+
+        try:
+            log_path = self._log_service.write(self._current_config, results)
+            summary += f"\n\nLog saved to:\n{log_path}"
+        except Exception as e:
+            logger.error("Failed to write log: %s", e)
 
         messagebox.showinfo("Complete", summary)
 
