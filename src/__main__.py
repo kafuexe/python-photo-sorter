@@ -3,6 +3,7 @@ import logging
 from .services.config_service import ConfigService
 from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
+from .handlers.exifread_handler import ExifReadHandler
 from .handlers.pyexiftool_handler import PyExifToolHandler
 from .handlers.file_stat_handler import FileStatHandler
 from .steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
@@ -27,6 +28,7 @@ def main():
     # 2. Handlers
     registry = HandlerRegistry()
     registry.register(PillowExifHandler())
+    registry.register(ExifReadHandler())
     registry.register(PyExifToolHandler())
     registry.register(FileStatHandler())
 
