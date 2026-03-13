@@ -1,12 +1,14 @@
 import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk
+
+from ..theme import BG, ACCENT, BORDER, FG, FG_DIM
 
 
-class CheckbuttonGroup(ttk.Frame):
-    """Dynamic checkbutton group that wraps to multiple rows."""
+class CheckbuttonGroup(ctk.CTkFrame):
+    """Dynamic checkbox group that wraps to multiple rows."""
 
     def __init__(self, parent, extensions: set[str], on_change=None, columns=4, **kwargs):
-        super().__init__(parent, **kwargs)
+        super().__init__(parent, fg_color="transparent", **kwargs)
 
         self._on_change = on_change
         self._updating = False
@@ -14,18 +16,22 @@ class CheckbuttonGroup(ttk.Frame):
 
         # "All" toggle on its own row
         self._all_var = tk.BooleanVar(value=False)
-        self._all_var.trace_add("write", lambda *_: self._on_all_toggled())
-        all_cb = ttk.Checkbutton(self, text="All", variable=self._all_var)
-        all_cb.grid(row=0, column=0, padx=(0, 12), pady=(0, 4), sticky=tk.W)
+        self._all_cb = ctk.CTkCheckBox(self, text="All", variable=self._all_var,
+                                       command=self._on_all_toggled,
+                                       fg_color=ACCENT, hover_color=ACCENT,
+                                       text_color=FG)
+        self._all_cb.grid(row=0, column=0, padx=(0, 12), pady=(0, 4), sticky=tk.W)
 
-        ttk.Separator(self, orient=tk.HORIZONTAL).grid(
-            row=1, column=0, columnspan=columns, sticky=tk.EW, pady=(0, 6))
+        sep = ctk.CTkFrame(self, height=1, fg_color=BORDER)
+        sep.grid(row=1, column=0, columnspan=columns, sticky=tk.EW, pady=(0, 6))
 
-        # Individual extension checkbuttons in a grid
+        # Individual extension checkboxes in a grid
         for i, ext in enumerate(sorted(extensions)):
             var = tk.BooleanVar(value=False)
-            var.trace_add("write", lambda *_: self._on_item_toggled())
-            cb = ttk.Checkbutton(self, text=f".{ext}", variable=var)
+            cb = ctk.CTkCheckBox(self, text=f".{ext}", variable=var,
+                                 command=self._on_item_toggled,
+                                 fg_color=ACCENT, hover_color=ACCENT,
+                                 text_color=FG)
             row = (i // columns) + 2
             col = i % columns
             cb.grid(row=row, column=col, padx=(0, 12), pady=2, sticky=tk.W)

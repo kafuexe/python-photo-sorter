@@ -1,24 +1,33 @@
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import filedialog
+import customtkinter as ctk
+
+from ..theme import BG, BG_INPUT, FG, FG_DIM, ACCENT, BORDER
 
 
-class DirectoryEntry(ttk.Frame):
-    """Reusable widget: label + text entry + browse button using grid layout."""
+class DirectoryEntry(ctk.CTkFrame):
+    """Reusable widget: label + text entry + browse button."""
 
     def __init__(self, parent, label_text: str, on_change=None, **kwargs):
-        super().__init__(parent, **kwargs)
+        super().__init__(parent, fg_color="transparent", **kwargs)
         self._on_change = on_change
 
-        self.columnconfigure(1, weight=1)
+        self.grid_columnconfigure(1, weight=1)
 
-        self._label = ttk.Label(self, text=label_text, width=8, anchor=tk.E)
+        self._label = ctk.CTkLabel(self, text=label_text, width=60, anchor=tk.E,
+                                   font=ctk.CTkFont(size=13))
         self._label.grid(row=0, column=0, padx=(0, 8), sticky=tk.E)
 
         self._var = tk.StringVar()
-        self._entry = ttk.Entry(self, textvariable=self._var, font=("Segoe UI", 11))
+        self._entry = ctk.CTkEntry(self, textvariable=self._var,
+                                   font=ctk.CTkFont(size=13),
+                                   fg_color=BG_INPUT, border_color=BORDER,
+                                   text_color=FG)
         self._entry.grid(row=0, column=1, sticky=tk.EW, padx=(0, 8))
 
-        self._button = ttk.Button(self, text="Browse...", command=self._browse, width=10)
+        self._button = ctk.CTkButton(self, text="Browse...", command=self._browse,
+                                     width=90, fg_color=BG_INPUT, hover_color=BORDER,
+                                     text_color=FG, border_width=1, border_color=BORDER)
         self._button.grid(row=0, column=2)
 
         if self._on_change:
