@@ -14,11 +14,36 @@ from .widgets.checkbutton_group import CheckbuttonGroup
 
 logger = logging.getLogger(__name__)
 
-FORMAT_HELP = (
-    "%Y = Year    %m = Month    %d = Day\n"
-    "%H = Hour    %M = Minute   %S = Second\n"
-    "Example:  %Y/%m/%d  \u2192  2024/01/15"
-)
+FORMAT_HINT = "e.g. %Y/%m/%d \u2192 2024/01/15"
+
+FORMAT_REFERENCE = [
+    ("Common codes", [
+        ("%d", "Day of month", "01\u201331"),
+        ("%m", "Month number", "01\u201312"),
+        ("%y", "Year (short)", "24"),
+        ("%Y", "Year (full)", "2024"),
+        ("%H", "Hour (24h)", "00\u201323"),
+        ("%I", "Hour (12h)", "01\u201312"),
+        ("%M", "Minute", "00\u201359"),
+        ("%S", "Second", "00\u201359"),
+        ("%p", "AM / PM", "PM"),
+    ]),
+    ("Names", [
+        ("%a", "Weekday (short)", "Wed"),
+        ("%A", "Weekday (full)", "Wednesday"),
+        ("%b", "Month (short)", "Dec"),
+        ("%B", "Month (full)", "December"),
+    ]),
+    ("Other", [
+        ("%j", "Day of year", "001\u2013366"),
+        ("%U", "Week number (Sun)", "00\u201353"),
+        ("%W", "Week number (Mon)", "00\u201353"),
+        ("%f", "Microsecond", "000000\u2013999999"),
+        ("%z", "UTC offset", "+0100"),
+        ("%Z", "Timezone", "CST"),
+        ("%%", "Literal %", "%"),
+    ]),
+]
 
 # ── Color palette ──────────────────────────────────────────────
 BG = "#1b1b1d"
@@ -169,13 +194,20 @@ class AppWindow(tk.Tk):
         # Date format
         fmt_frame = ttk.LabelFrame(settings_frame, text="  Date Format  ", padding=12)
         fmt_frame.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
+        fmt_frame.columnconfigure(0, weight=1)
+
+        fmt_row = ttk.Frame(fmt_frame)
+        fmt_row.pack(fill=tk.X, pady=(0, 6))
+        fmt_row.columnconfigure(0, weight=1)
 
         self._format_var = tk.StringVar(value="%Y/%m/%d")
-        fmt_entry = ttk.Entry(fmt_frame, textvariable=self._format_var, font=("Consolas", 11))
-        fmt_entry.pack(fill=tk.X, pady=(0, 8))
+        fmt_entry = ttk.Entry(fmt_row, textvariable=self._format_var, font=("Consolas", 11))
+        fmt_entry.grid(row=0, column=0, sticky=tk.EW, padx=(0, 6))
 
-        ttk.Label(fmt_frame, text=FORMAT_HELP, style="Help.TLabel",
-                  justify=tk.LEFT).pack(anchor=tk.W)
+        help_btn = ttk.Button(fmt_row, text="?", width=3, command=self._show_format_help)
+        help_btn.grid(row=0, column=1)
+
+        ttk.Label(fmt_frame, text=FORMAT_HINT, style="Help.TLabel").pack(anchor=tk.W)
 
         # File types
         types_frame = ttk.LabelFrame(settings_frame, text="  File Types  ", padding=12)
@@ -218,6 +250,64 @@ class AppWindow(tk.Tk):
         self._status_var = tk.StringVar(value="Ready")
         ttk.Label(status_frame, textvariable=self._status_var,
                   style="Status.TLabel").pack(anchor=tk.W, padx=16, pady=6)
+
+    # ── Format help window ─────────────────────────────────────
+
+    def _show_format_help(self) -> None:
+        win = tk.Toplevel(self)
+        win.title("Date Format Reference")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+        win.transient(self)
+        win.grab_set()
+
+        pad = ttk.Frame(win, padding=20)
+        pad.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(pad, text="Date Format Codes", style="Heading.TLabel").pack(anchor=tk.W)
+        ttk.Label(pad, text="Use these codes in the format field. Slashes create subfolders.",
+                  style="Subheading.TLabel").pack(anchor=tk.W, pady=(2, 12))
+
+        for section_name, codes in FORMAT_REFERENCE:
+            ttk.Label(pad, text=section_name,
+                      font=("Segoe UI Semibold", 10), foreground=FG_HEADING,
+                      background=BG).pack(anchor=tk.W, pady=(8, 4))
+
+            table = ttk.Frame(pad)
+            table.pack(fill=tk.X, pady=(0, 4))
+            table.columnconfigure(1, weight=1)
+
+            for i, (code, desc, example) in enumerate(codes):
+                bg = BG_SURFACE if i % 2 == 0 else BG
+                row = tk.Frame(table, bg=bg)
+                row.grid(row=i, column=0, columnspan=3, sticky=tk.EW)
+                table.columnconfigure(0, weight=0)
+
+                tk.Label(row, text=code, font=("Consolas", 10, "bold"),
+                         fg=ACCENT, bg=bg, width=6, anchor=tk.W).pack(
+                    side=tk.LEFT, padx=(8, 12), pady=3)
+                tk.Label(row, text=desc, font=("Segoe UI", 9),
+                         fg=FG, bg=bg, anchor=tk.W).pack(
+                    side=tk.LEFT, padx=(0, 16), pady=3, expand=True, fill=tk.X)
+                tk.Label(row, text=example, font=("Consolas", 9),
+                         fg=FG_DIM, bg=bg, anchor=tk.E).pack(
+                    side=tk.RIGHT, padx=(0, 8), pady=3)
+
+        ttk.Separator(pad, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(12, 8))
+
+        tip = ttk.Label(pad, style="Help.TLabel", justify=tk.LEFT,
+                        text="Tip:  %d = day,  %D = month/day/year (with slashes!)\n"
+                             "       %m = month,  %M = minute  \u2014  case matters!")
+        tip.pack(anchor=tk.W)
+
+        ttk.Button(pad, text="Close", command=win.destroy,
+                   style="TButton").pack(anchor=tk.E, pady=(12, 0))
+
+        # Center on parent
+        win.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - win.winfo_width()) // 2
+        y = self.winfo_y() + (self.winfo_height() - win.winfo_height()) // 2
+        win.geometry(f"+{x}+{y}")
 
     # ── File count ─────────────────────────────────────────────
 
