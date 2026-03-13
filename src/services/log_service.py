@@ -17,71 +17,88 @@ def _base_dir() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _format_result(r: FileResult) -> str:
+    status = r.status.upper()
+    dest = str(r.destination) if r.destination else "-"
+    line = f"  [{status:>7}]  {r.source}  ->  {dest}"
+    if r.error:
+        line += f"  ({r.error})"
+    return line
+
+
 class LogService:
     def __init__(self, log_dir: Path | None = None):
         self._log_dir = log_dir or (_base_dir() / LOG_DIR_NAME)
+        self._file = None
+        self._path: Path | None = None
 
-    def write(self, config: ProcessingConfig, results: list[FileResult],
-              stats=None) -> Path:
+    def begin(self, config: ProcessingConfig) -> Path:
+        """Open the log file and write the header. Call log_result() for each
+        file, then finish() when done."""
         self._log_dir.mkdir(parents=True, exist_ok=True)
 
         now = datetime.now()
         filename = now.strftime("%Y-%m-%d_%H-%M-%S") + f"_{config.action}.txt"
-        path = self._log_dir / filename
+        self._path = self._log_dir / filename
 
-        lines: list[str] = []
+        self._file = open(self._path, "w", encoding="utf-8")
 
-        # Header
-        lines.append(f"Photo Sorter — {config.action.upper()} log")
-        lines.append(f"Date: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("")
+        self._writeln(f"Photo Sorter — {config.action.upper()} log")
+        self._writeln(f"Date: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+        self._writeln("")
+        self._writeln("=== Settings ===")
+        self._writeln(f"  Source:      {config.input_dir}")
+        self._writeln(f"  Output:      {config.output_dir}")
+        self._writeln(f"  Date format: {config.date_format}")
+        self._writeln(f"  Action:      {config.action}")
+        self._writeln(f"  Extensions:  {', '.join(sorted(config.selected_extensions))}")
+        self._writeln(f"  Handle unknown: {config.handle_unknown}")
+        self._writeln("")
+        self._writeln("=== Files ===")
+        self._file.flush()
 
-        # Settings
-        lines.append("=== Settings ===")
-        lines.append(f"  Source:      {config.input_dir}")
-        lines.append(f"  Output:      {config.output_dir}")
-        lines.append(f"  Date format: {config.date_format}")
-        lines.append(f"  Action:      {config.action}")
-        lines.append(f"  Extensions:  {', '.join(sorted(config.selected_extensions))}")
-        lines.append(f"  Handle unknown: {config.handle_unknown}")
-        lines.append("")
+        return self._path
 
-        # Summary
+    def log_result(self, result: FileResult) -> None:
+        """Append a single file result and flush immediately."""
+        if self._file is None:
+            return
+        self._writeln(_format_result(result))
+        self._file.flush()
+
+    def finish(self, results: list[FileResult], stats=None) -> None:
+        """Write summary and timing, then close the log file."""
+        if self._file is None:
+            return
+
+        self._writeln("")
+
         success = sum(1 for r in results if r.status == "success")
         unknown = sum(1 for r in results if r.status == "unknown")
         skipped = sum(1 for r in results if r.status == "skipped")
         errors = sum(1 for r in results if r.status == "error")
-        lines.append("=== Summary ===")
-        lines.append(f"  Total: {len(results)}  |  Success: {success}  |  Unknown: {unknown}  |  Skipped: {skipped}  |  Errors: {errors}")
-        lines.append("")
+        self._writeln("=== Summary ===")
+        self._writeln(f"  Total: {len(results)}  |  Success: {success}  |  Unknown: {unknown}  |  Skipped: {skipped}  |  Errors: {errors}")
+        self._writeln("")
 
-        # Timing
         if stats is not None:
-            lines.append("=== Timing ===")
-            lines.append(stats.summary())
-            lines.append("")
+            self._writeln("=== Timing ===")
+            self._writeln(stats.summary())
+            self._writeln("")
 
             slowest = stats.slowest(10)
             if slowest:
-                lines.append("=== Slowest Files ===")
+                self._writeln("=== Slowest Files ===")
                 for f in slowest:
                     total = f["extract"] + f["resolve"] + f["execute"]
-                    lines.append(
+                    self._writeln(
                         f"  {total:.3f}s  {f['file']}"
                         f"  (extract={f['extract']:.3f}s  resolve={f['resolve']:.3f}s  execute={f['execute']:.3f}s)"
                     )
-                lines.append("")
 
-        # File list
-        lines.append("=== Files ===")
-        for r in results:
-            status = r.status.upper()
-            dest = str(r.destination) if r.destination else "-"
-            line = f"  [{status:>7}]  {r.source}  ->  {dest}"
-            if r.error:
-                line += f"  ({r.error})"
-            lines.append(line)
+        self._file.close()
+        self._file = None
+        logger.info("Log written to %s", self._path)
 
-        path.write_text("\n".join(lines), encoding="utf-8")
-        logger.info("Log written to %s", path)
-        return path
+    def _writeln(self, line: str) -> None:
+        self._file.write(line + "\n")

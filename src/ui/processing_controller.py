@@ -106,7 +106,18 @@ class ProcessingController:
         )
 
     def _run(self, config: ProcessingConfig) -> None:
+        try:
+            log_path = self._log_service.begin(config)
+        except Exception as e:
+            logger.error("Failed to open log file: %s", e)
+            log_path = None
+
         def on_progress(result: FileResult) -> None:
+            if log_path is not None:
+                try:
+                    self._log_service.log_result(result)
+                except Exception as e:
+                    logger.error("Failed to write log entry: %s", e)
             self._window.after(0, self._on_progress, result)
 
         def on_total(total: int) -> None:
@@ -114,7 +125,14 @@ class ProcessingController:
 
         results, stats = self._processing_service.process(config, on_progress=on_progress,
                                                           on_total=on_total)
-        self._window.after(0, self._on_complete, results, stats)
+
+        if log_path is not None:
+            try:
+                self._log_service.finish(results, stats)
+            except Exception as e:
+                logger.error("Failed to finalize log: %s", e)
+
+        self._window.after(0, self._on_complete, results, stats, log_path)
 
     def _on_total(self, total: int) -> None:
         self._total_count = total
@@ -127,7 +145,7 @@ class ProcessingController:
         self._progress_label.configure(text=f"{self._processed_count}/{self._total_count}")
         self._status_var.set(f"Processing: {result.source.name} \u2014 {result.status}")
 
-    def _on_complete(self, results: list[FileResult], stats) -> None:
+    def _on_complete(self, results: list[FileResult], stats, log_path) -> None:
         self._processing = False
         self._btn_move.configure(state=tk.NORMAL)
         self._btn_copy.configure(state=tk.NORMAL)
@@ -142,10 +160,7 @@ class ProcessingController:
         self._status_var.set(summary)
         logger.info(summary)
 
-        try:
-            log_path = self._log_service.write(self._current_config, results, stats)
+        if log_path is not None:
             summary += f"\n\nLog saved to:\n{log_path}"
-        except Exception as e:
-            logger.error("Failed to write log: %s", e)
 
         messagebox.showinfo("Complete", summary)
