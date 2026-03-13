@@ -23,10 +23,14 @@ class ProcessingService:
         self._file_executor = file_executor
 
     def process(self, config: ProcessingConfig,
-                on_progress: Callable[[FileResult], None] | None = None) -> list[FileResult]:
+                on_progress: Callable[[FileResult], None] | None = None,
+                on_total: Callable[[int], None] | None = None) -> list[FileResult]:
         results: list[FileResult] = []
 
         files = self._file_finder.find(config.input_dir, config.selected_extensions)
+
+        if on_total:
+            on_total(len(files))
 
         for file_path in files:
             result = FileResult(source=file_path)

@@ -80,6 +80,8 @@ class AppWindow(tk.Tk):
         self._configure_styles()
         self._build_ui()
         self._load_config()
+        self._last_saved_config: dict = {}
+        self._start_autosave()
 
     # ── Styles ─────────────────────────────────────────────────
 
@@ -238,9 +240,22 @@ class AppWindow(tk.Tk):
         self._btn_move.pack(side=tk.RIGHT)
 
         # ── Progress ──
-        self._progress = ttk.Progressbar(self, mode="indeterminate", style="TProgressbar")
-        self._progress.grid(row=7, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
-        self._progress.grid_remove()
+        progress_frame = ttk.Frame(self)
+        progress_frame.grid(row=7, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
+        progress_frame.grid_remove()
+        progress_frame.columnconfigure(0, weight=1)
+        self._progress_frame = progress_frame
+
+        self._progress = ttk.Progressbar(progress_frame, mode="determinate", style="TProgressbar")
+        self._progress.grid(row=0, column=0, sticky=tk.EW)
+
+        self._progress_text = tk.Label(progress_frame, text="0/0",
+                                       font=("Segoe UI Semibold", 9),
+                                       fg=FG, bg=BG, anchor=tk.CENTER)
+        self._progress_text.grid(row=0, column=0, sticky=tk.EW)
+
+        self._processed_count = 0
+        self._total_count = 0
 
         # ── Status bar ──
         status_frame = ttk.Frame(self, style="Surface.TFrame")
@@ -341,15 +356,30 @@ class AppWindow(tk.Tk):
         self._file_types.set_selected(config.get("selected_extensions", []))
         self._unknown_var.set(config.get("handle_unknown", True))
 
-    def _save_config(self) -> None:
-        config = {
+    def _get_current_config(self) -> dict:
+        return {
             "input_dir": self._input_dir.get(),
             "output_dir": self._output_dir.get(),
             "date_format": self._format_var.get(),
             "selected_extensions": self._file_types.get_selected(),
             "handle_unknown": self._unknown_var.get(),
         }
+
+    def _save_config(self) -> None:
+        config = self._get_current_config()
         self._config_service.save(config)
+        self._last_saved_config = config
+
+    def _start_autosave(self) -> None:
+        self._last_saved_config = self._get_current_config()
+        self._autosave_tick()
+
+    def _autosave_tick(self) -> None:
+        current = self._get_current_config()
+        if current != self._last_saved_config:
+            self._save_config()
+            logger.debug("Config auto-saved")
+        self.after(10_000, self._autosave_tick)
 
     # ── Processing ─────────────────────────────────────────────
 
@@ -406,8 +436,12 @@ class AppWindow(tk.Tk):
         self._btn_move.config(state=tk.DISABLED)
         self._btn_copy.config(state=tk.DISABLED)
         self._status_var.set("Processing...")
-        self._progress.grid()
-        self._progress.start(15)
+
+        self._processed_count = 0
+        self._total_count = 0
+        self._progress["value"] = 0
+        self._progress_text.config(text="0/0")
+        self._progress_frame.grid()
         logger.info("Starting %s operation", action)
 
         config = self._build_config(action)
@@ -423,18 +457,29 @@ class AppWindow(tk.Tk):
         def on_progress(result: FileResult) -> None:
             self.after(0, self._on_progress, result)
 
-        results = self._processing_service.process(config, on_progress=on_progress)
+        def on_total(total: int) -> None:
+            self.after(0, self._on_total, total)
+
+        results = self._processing_service.process(config, on_progress=on_progress,
+                                                   on_total=on_total)
         self.after(0, self._on_complete, results)
 
+    def _on_total(self, total: int) -> None:
+        self._total_count = total
+        self._progress["maximum"] = total
+        self._progress_text.config(text=f"0/{total}")
+
     def _on_progress(self, result: FileResult) -> None:
+        self._processed_count += 1
+        self._progress["value"] = self._processed_count
+        self._progress_text.config(text=f"{self._processed_count}/{self._total_count}")
         self._status_var.set(f"Processing: {result.source.name} \u2014 {result.status}")
 
     def _on_complete(self, results: list[FileResult]) -> None:
         self._processing = False
         self._btn_move.config(state=tk.NORMAL)
         self._btn_copy.config(state=tk.NORMAL)
-        self._progress.stop()
-        self._progress.grid_remove()
+        self._progress_frame.grid_remove()
 
         success = sum(1 for r in results if r.status == "success")
         unknown = sum(1 for r in results if r.status == "unknown")
