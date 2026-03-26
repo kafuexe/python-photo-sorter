@@ -6,6 +6,7 @@ from .services.config_service import ConfigService
 from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
 from .handlers.exifread_handler import ExifReadHandler
+from .handlers.whatsapp_handler import WhatsAppHandler
 from .steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
@@ -29,6 +30,7 @@ def main():
     registry = HandlerRegistry()
     registry.register(PillowExifHandler())
     registry.register(ExifReadHandler())
+    registry.register(WhatsAppHandler())
 
     # 3. Pipeline steps
     file_finder = FileFinder()
