@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.models.processing_config import ProcessingConfig
 from src.services.processing_service import ProcessingService
 
@@ -19,180 +21,209 @@ def make_config(tmp_path, **overrides):
     return ProcessingConfig(**defaults)
 
 
-class TestProcessingService:
-    def _make_service(self, files=None, metadata=None, dest=None):
-        finder = MagicMock()
-        finder.find.return_value = files or []
+@pytest.fixture
+def pipeline():
+    """Return (service, finder, extractor, resolver, executor) with MagicMock steps."""
+    finder = MagicMock()
+    extractor = MagicMock()
+    resolver = MagicMock()
+    executor = MagicMock()
 
-        extractor = MagicMock()
-        extractor.extract.return_value = metadata or {}
+    finder.find.return_value = []
+    extractor.extract.return_value = {}
+    resolver.resolve.return_value = None
 
-        resolver = MagicMock()
-        resolver.resolve.return_value = dest
+    service = ProcessingService(
+        file_finder=finder,
+        metadata_extractor=extractor,
+        destination_resolver=resolver,
+        file_executor=executor,
+    )
+    return service, finder, extractor, resolver, executor
 
-        executor = MagicMock()
 
-        service = ProcessingService(
-            file_finder=finder,
-            metadata_extractor=extractor,
-            destination_resolver=resolver,
-            file_executor=executor,
-        )
-        return service, finder, extractor, resolver, executor
-
-    def test_empty_directory(self, tmp_path):
-        service, finder, _, _, _ = self._make_service(files=[])
+class TestProcessingServiceResults:
+    def test_empty_directory(self, pipeline, tmp_path):
+        service, finder, _, _, _ = pipeline
         config = make_config(tmp_path)
 
-        results, stats = service.process(config)
+        results, _ = service.process(config)
         assert results == []
         finder.find.assert_called_once()
 
-    def test_successful_processing(self, tmp_path):
+    def test_successful_processing(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, executor = pipeline
         src = Path("/in/photo.jpg")
         dest = Path("/out/2024/01/01/photo.jpg")
-        dt = datetime(2024, 1, 1)
 
-        service, _, extractor, resolver, executor = self._make_service(
-            files=[src],
-            metadata={"date": dt},
-            dest=dest,
-        )
-        config = make_config(tmp_path)
+        finder.find.return_value = [src]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = dest
 
-        results, stats = service.process(config)
+        results, _ = service.process(make_config(tmp_path))
+
         assert len(results) == 1
         assert results[0].status == "success"
         assert results[0].destination == dest
         executor.execute.assert_called_once_with(src, dest, "copy")
 
-    def test_skipped_when_no_dest(self, tmp_path):
-        service, _, _, resolver, executor = self._make_service(
-            files=[Path("/in/photo.jpg")],
-            metadata={},
-            dest=None,
-        )
-        config = make_config(tmp_path, handle_unknown=False)
+    @pytest.mark.parametrize("handle_unknown, dest, expected_status", [
+        (False, None,                          "skipped"),
+        (True,  Path("/out/.unknown/photo.jpg"), "unknown"),
+    ])
+    def test_no_date_handling(self, pipeline, tmp_path, handle_unknown, dest, expected_status):
+        service, finder, extractor, resolver, executor = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {}
+        resolver.resolve.return_value = dest
 
-        results, stats = service.process(config)
-        assert len(results) == 1
-        assert results[0].status == "skipped"
-        executor.execute.assert_not_called()
+        results, _ = service.process(make_config(tmp_path, handle_unknown=handle_unknown))
 
-    def test_unknown_status_when_no_date_but_handled(self, tmp_path):
-        dest = Path("/out/.unknown/photo.jpg")
-        service, _, _, _, executor = self._make_service(
-            files=[Path("/in/photo.jpg")],
-            metadata={},
-            dest=dest,
-        )
-        config = make_config(tmp_path, handle_unknown=True)
+        assert results[0].status == expected_status
+        if expected_status == "skipped":
+            executor.execute.assert_not_called()
 
-        results, stats = service.process(config)
-        assert len(results) == 1
-        assert results[0].status == "unknown"
-        executor.execute.assert_called_once()
-
-    def test_error_handling(self, tmp_path):
-        service, _, _, _, executor = self._make_service(
-            files=[Path("/in/photo.jpg")],
-            metadata={"date": datetime(2024, 1, 1)},
-            dest=Path("/out/photo.jpg"),
-        )
+    def test_error_handling(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, executor = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
         executor.execute.side_effect = OSError("disk full")
-        config = make_config(tmp_path)
 
-        results, stats = service.process(config)
-        assert len(results) == 1
+        results, _ = service.process(make_config(tmp_path))
+
         assert results[0].status == "error"
         assert "disk full" in results[0].error
 
-    def test_progress_callback(self, tmp_path):
-        service, _, _, _, _ = self._make_service(
-            files=[Path("/in/a.jpg"), Path("/in/b.jpg")],
-            metadata={"date": datetime(2024, 1, 1)},
-            dest=Path("/out/photo.jpg"),
-        )
-        config = make_config(tmp_path)
+    def test_extractor_exception_produces_error_result(self, pipeline, tmp_path):
+        service, finder, extractor, _, _ = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.side_effect = RuntimeError("corrupt file")
 
-        progress_calls = []
-        results, stats = service.process(config, on_progress=progress_calls.append)
-        assert len(progress_calls) == 2
+        results, _ = service.process(make_config(tmp_path))
+
+        assert results[0].status == "error"
+        assert "corrupt file" in results[0].error
+
+    def test_resolver_exception_produces_error_result(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.side_effect = ValueError("bad format")
+
+        results, _ = service.process(make_config(tmp_path))
+
+        assert results[0].status == "error"
+        assert "bad format" in results[0].error
+
+    def test_executor_returns_false_means_skipped(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, executor = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/2024/photo.jpg")
+        executor.execute.return_value = False
+
+        results, _ = service.process(make_config(tmp_path))
+        assert results[0].status == "skipped"
+
+    def test_metadata_stores_on_result(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, _ = pipeline
+        dt = datetime(2024, 1, 1)
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {"date": dt, "camera": "Canon"}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+
+        results, _ = service.process(make_config(tmp_path))
+        assert results[0].metadata["date"] == dt
+        assert results[0].metadata["camera"] == "Canon"
+
+
+class TestProcessingServiceCallbacks:
+    def test_progress_callback_called_per_file(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/{c}.jpg") for c in "ab"]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+
+        progress = []
+        results, _ = service.process(make_config(tmp_path), on_progress=progress.append)
+
+        assert len(progress) == 2
         assert len(results) == 2
 
-    def test_multiple_files(self, tmp_path):
-        files = [Path(f"/in/photo{i}.jpg") for i in range(5)]
-        service, _, _, _, _ = self._make_service(
-            files=files,
-            metadata={"date": datetime(2024, 1, 1)},
-            dest=Path("/out/photo.jpg"),
-        )
-        config = make_config(tmp_path)
+    def test_multiple_files_all_processed(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/photo{i}.jpg") for i in range(5)]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
 
-        results, stats = service.process(config)
+        results, _ = service.process(make_config(tmp_path))
         assert len(results) == 5
 
-    def test_returns_timing_stats(self, tmp_path):
-        files = [Path(f"/in/photo{i}.jpg") for i in range(3)]
-        service, _, _, _, _ = self._make_service(
-            files=files,
-            metadata={"date": datetime(2024, 1, 1)},
-            dest=Path("/out/photo.jpg"),
-        )
-        config = make_config(tmp_path)
+    def test_on_total_callback_receives_file_count(self, pipeline, tmp_path):
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/{c}.jpg") for c in "abc"]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
 
-        results, stats = service.process(config)
+        totals = []
+        service.process(make_config(tmp_path), on_total=totals.append)
+        assert totals == [3]
+
+    def test_on_total_not_called_when_none(self, pipeline, tmp_path):
+        service, finder, _, _, _ = pipeline
+        finder.find.return_value = [Path("/in/a.jpg")]
+        # Should not raise even though on_total is None
+        service.process(make_config(tmp_path), on_total=None)
+
+
+class TestProcessingServiceTiming:
+    @pytest.fixture
+    def timed_pipeline(self, pipeline, tmp_path):
+        """Pipeline with 3 files that produces timing stats."""
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/photo{i}.jpg") for i in range(3)]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+        return service, make_config(tmp_path)
+
+    def test_returns_timing_stats(self, timed_pipeline):
+        service, config = timed_pipeline
+        _, stats = service.process(config)
 
         assert stats.file_count == 3
         assert stats.total > 0
-        assert stats.find >= 0
-        assert stats.extract >= 0
-        assert stats.resolve >= 0
-        assert stats.execute >= 0
         assert len(stats.per_file) == 3
 
-    def test_timing_summary_string(self, tmp_path):
-        files = [Path("/in/photo.jpg")]
-        service, _, _, _, _ = self._make_service(
-            files=files,
-            metadata={"date": datetime(2024, 1, 1)},
-            dest=Path("/out/photo.jpg"),
-        )
-        config = make_config(tmp_path)
+    @pytest.mark.parametrize("field", ["find", "extract", "resolve", "execute"])
+    def test_timing_fields_are_non_negative(self, timed_pipeline, field):
+        service, config = timed_pipeline
+        _, stats = service.process(config)
+        assert getattr(stats, field) >= 0
 
+    def test_summary_contains_expected_sections(self, timed_pipeline):
+        service, config = timed_pipeline
         _, stats = service.process(config)
         summary = stats.summary()
 
-        assert "Total time:" in summary
-        assert "File discovery:" in summary
-        assert "Metadata extract:" in summary
-        assert "File execute:" in summary
+        for label in ("Total time:", "File discovery:", "Metadata extract:", "File execute:"):
+            assert label in summary
 
-    def test_slowest_returns_sorted(self, tmp_path):
-        files = [Path(f"/in/photo{i}.jpg") for i in range(3)]
-        service, _, _, _, _ = self._make_service(
-            files=files,
-            metadata={"date": datetime(2024, 1, 1)},
-            dest=Path("/out/photo.jpg"),
-        )
-        config = make_config(tmp_path)
-
+    def test_slowest_returns_sorted_and_capped(self, timed_pipeline):
+        service, config = timed_pipeline
         _, stats = service.process(config)
         slowest = stats.slowest(2)
 
         assert len(slowest) <= 2
         if len(slowest) == 2:
-            t0 = slowest[0]["extract"] + slowest[0]["resolve"] + slowest[0]["execute"]
-            t1 = slowest[1]["extract"] + slowest[1]["resolve"] + slowest[1]["execute"]
-            assert t0 >= t1
+            total = lambda s: s["extract"] + s["resolve"] + s["execute"]
+            assert total(slowest[0]) >= total(slowest[1])
 
-    def test_empty_stats(self, tmp_path):
-        service, _, _, _, _ = self._make_service(files=[])
-        config = make_config(tmp_path)
-
-        _, stats = service.process(config)
+    def test_empty_run_produces_valid_stats(self, pipeline, tmp_path):
+        service, _, _, _, _ = pipeline
+        _, stats = service.process(make_config(tmp_path))
 
         assert stats.file_count == 0
         assert stats.total >= 0
-        assert len(stats.per_file) == 0
+        assert stats.per_file == []
         assert stats.slowest(5) == []

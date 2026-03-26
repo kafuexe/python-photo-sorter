@@ -1,17 +1,31 @@
 from pathlib import Path
+
+import pytest
+
 from src.models.file_result import FileResult
 
 
-class TestFileResult:
-    def test_defaults(self):
-        r = FileResult(source=Path("photo.jpg"))
-        assert r.source == Path("photo.jpg")
-        assert r.destination is None
-        assert r.status == "pending"
-        assert r.error is None
-        assert r.metadata == {}
+@pytest.fixture
+def default_result():
+    return FileResult(source=Path("photo.jpg"))
 
-    def test_all_fields(self):
+
+class TestFileResultDefaults:
+    @pytest.mark.parametrize("attr, expected", [
+        ("destination", None),
+        ("status", "pending"),
+        ("error", None),
+        ("metadata", {}),
+    ])
+    def test_default_values(self, default_result, attr, expected):
+        assert getattr(default_result, attr) == expected
+
+    def test_source_preserved(self, default_result):
+        assert default_result.source == Path("photo.jpg")
+
+
+class TestFileResultFields:
+    def test_all_fields_assignable(self):
         r = FileResult(
             source=Path("a.jpg"),
             destination=Path("out/a.jpg"),
@@ -23,7 +37,7 @@ class TestFileResult:
         assert r.destination == Path("out/a.jpg")
         assert r.metadata["date"] == "2024-01-01"
 
-    def test_metadata_default_not_shared(self):
+    def test_metadata_default_not_shared_between_instances(self):
         r1 = FileResult(source=Path("a.jpg"))
         r2 = FileResult(source=Path("b.jpg"))
         r1.metadata["key"] = "value"

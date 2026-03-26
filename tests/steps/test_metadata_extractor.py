@@ -1,6 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from src.handlers.base import BaseHandler
 from src.handlers.registry import HandlerRegistry
 from src.steps.metadata_extractor import MetadataExtractor, BaseMetadataExtractor
@@ -37,74 +39,90 @@ class CrashingHandler(BaseHandler):
         raise RuntimeError("boom")
 
 
-class TestMetadataExtractor:
+@pytest.fixture
+def registry():
+    return HandlerRegistry()
+
+
+@pytest.fixture
+def jpg_file(tmp_path):
+    path = tmp_path / "test.jpg"
+    path.write_bytes(b"img")
+    return path
+
+
+class TestMetadataExtractorConfig:
     def test_is_subclass_of_base(self):
         assert issubclass(MetadataExtractor, BaseMetadataExtractor)
 
-    def test_first_date_wins(self, tmp_path):
-        path = tmp_path / "test.jpg"
-        path.write_bytes(b"img")
 
-        reg = HandlerRegistry()
-        dt1 = datetime(2024, 1, 1)
-        dt2 = datetime(2025, 6, 15)
-        reg.register(FakeDateHandler(["jpg"], 10, date=dt1))
-        reg.register(FakeDateHandler(["jpg"], 50, date=dt2))
+class TestMetadataExtractorDateResolution:
+    def test_first_date_wins(self, registry, jpg_file):
+        dt1, dt2 = datetime(2024, 1, 1), datetime(2025, 6, 15)
+        registry.register(FakeDateHandler(["jpg"], 10, date=dt1))
+        registry.register(FakeDateHandler(["jpg"], 50, date=dt2))
 
-        result = MetadataExtractor(reg).extract(path)
+        result = MetadataExtractor(registry).extract(jpg_file)
         assert result["date"] == dt1
 
-    def test_other_keys_accumulate(self, tmp_path):
-        path = tmp_path / "test.jpg"
-        path.write_bytes(b"img")
+    def test_skips_none_date_to_find_valid(self, registry, jpg_file):
+        dt = datetime(2024, 1, 1)
+        registry.register(FakeDateHandler(["jpg"], 10, date=None))
+        registry.register(FakeDateHandler(["jpg"], 50, date=dt))
 
-        reg = HandlerRegistry()
-        reg.register(FakeDateHandler(["jpg"], 10, extra={"camera": "Canon"}))
-        reg.register(FakeDateHandler(["jpg"], 50, extra={"gps": "12,34"}))
+        result = MetadataExtractor(registry).extract(jpg_file)
+        assert result["date"] == dt
 
-        result = MetadataExtractor(reg).extract(path)
+
+class TestMetadataExtractorKeyMerging:
+    def test_keys_accumulate_across_handlers(self, registry, jpg_file):
+        registry.register(FakeDateHandler(["jpg"], 10, extra={"camera": "Canon"}))
+        registry.register(FakeDateHandler(["jpg"], 50, extra={"gps": "12,34"}))
+
+        result = MetadataExtractor(registry).extract(jpg_file)
         assert result["camera"] == "Canon"
         assert result["gps"] == "12,34"
 
-    def test_first_key_wins_for_non_date(self, tmp_path):
-        path = tmp_path / "test.jpg"
-        path.write_bytes(b"img")
+    def test_first_handler_wins_for_duplicate_keys(self, registry, jpg_file):
+        registry.register(FakeDateHandler(["jpg"], 10, extra={"camera": "Canon"}))
+        registry.register(FakeDateHandler(["jpg"], 50, extra={"camera": "Nikon"}))
 
-        reg = HandlerRegistry()
-        reg.register(FakeDateHandler(["jpg"], 10, extra={"camera": "Canon"}))
-        reg.register(FakeDateHandler(["jpg"], 50, extra={"camera": "Nikon"}))
-
-        result = MetadataExtractor(reg).extract(path)
+        result = MetadataExtractor(registry).extract(jpg_file)
         assert result["camera"] == "Canon"
 
-    def test_skips_none_date(self, tmp_path):
-        path = tmp_path / "test.jpg"
-        path.write_bytes(b"img")
 
-        reg = HandlerRegistry()
-        reg.register(FakeDateHandler(["jpg"], 10, date=None))
+class TestMetadataExtractorResilience:
+    def test_crashing_handler_is_skipped(self, registry, jpg_file):
         dt = datetime(2024, 1, 1)
-        reg.register(FakeDateHandler(["jpg"], 50, date=dt))
+        registry.register(CrashingHandler())
+        registry.register(FakeDateHandler(["jpg"], 50, date=dt))
 
-        result = MetadataExtractor(reg).extract(path)
+        result = MetadataExtractor(registry).extract(jpg_file)
         assert result["date"] == dt
 
-    def test_no_handlers_returns_empty(self, tmp_path):
+    def test_no_handlers_returns_empty(self, registry, tmp_path):
         path = tmp_path / "test.xyz"
         path.write_bytes(b"data")
 
-        reg = HandlerRegistry()
-        result = MetadataExtractor(reg).extract(path)
+        result = MetadataExtractor(registry).extract(path)
         assert result == {}
 
-    def test_crashing_handler_skipped(self, tmp_path):
-        path = tmp_path / "test.jpg"
-        path.write_bytes(b"img")
+    def test_all_handlers_crash_returns_empty(self, registry, jpg_file):
+        registry.register(CrashingHandler())
+        result = MetadataExtractor(registry).extract(jpg_file)
+        assert result == {}
 
-        reg = HandlerRegistry()
-        reg.register(CrashingHandler())
+    def test_handler_returning_empty_dict_skipped(self, registry, jpg_file):
+        """A handler that returns {} should not block subsequent handlers."""
         dt = datetime(2024, 1, 1)
-        reg.register(FakeDateHandler(["jpg"], 50, date=dt))
 
-        result = MetadataExtractor(reg).extract(path)
+        class EmptyHandler(BaseHandler):
+            def supported_extensions(self): return ["jpg"]
+            def priority(self): return 5
+            def extract_metadata(self, fp): return {}
+
+        registry.register(EmptyHandler())
+        registry.register(FakeDateHandler(["jpg"], 50, date=dt))
+
+        result = MetadataExtractor(registry).extract(jpg_file)
         assert result["date"] == dt
