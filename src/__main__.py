@@ -12,6 +12,7 @@ from .handlers.pixel_handler import PixelHandler
 from .handlers.telegram_handler import TelegramHandler
 from .handlers.screenshot_handler import ScreenshotHandler
 from .handlers.datestamp_handler import DatestampHandler
+from .handlers.pymediainfo_handler import PyMediaInfoHandler
 from .steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
@@ -41,6 +42,7 @@ def main():
     registry.register(TelegramHandler())
     registry.register(ScreenshotHandler())
     registry.register(DatestampHandler())
+    registry.register(PyMediaInfoHandler())
 
     # 3. Pipeline steps
     file_finder = FileFinder()
