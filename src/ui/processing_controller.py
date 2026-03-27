@@ -310,7 +310,7 @@ class ProcessingController:
                     parent_id,
                     "end",
                     text=part,
-                    open=not is_file,
+                    open=False,  # Start collapsed
                 )
                 self._tree_nodes[current_path] = node_id
             parent_id = self._tree_nodes[current_path]
