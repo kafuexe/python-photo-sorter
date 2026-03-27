@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: benchmarks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write
@@ -126,8 +130,7 @@ jobs:
               if (!baseline) return 'N/A';
               const change = ((current - baseline) / baseline) * 100;
               const sign = change > 0 ? '+' : '';
-              const emoji = change > 5 ? ' :warning:' : change < -5 ? ' :rocket:' : '';
-              return `${sign}${change.toFixed(1)}%${emoji}`;
+              return `${sign}${change.toFixed(1)}%`;
             };
 
             let comment = '## Performance Benchmark Results\n\n';
@@ -142,7 +145,7 @@ jobs:
               comment += `| ${bench.name} | ${mean}ms | ${ops} | ${vsLast} | ${vsMain} |\n`;
             }
 
-            comment += '\n*Positive % = slower, Negative % = faster. :warning: >5% regression, :rocket: >5% improvement*\n';
+            comment += '\n*Positive % = slower, Negative % = faster*\n';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
