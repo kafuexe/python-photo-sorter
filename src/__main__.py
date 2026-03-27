@@ -7,6 +7,12 @@ from .handlers.registry import HandlerRegistry
 from .handlers.pillow_exif_handler import PillowExifHandler
 from .handlers.exifread_handler import ExifReadHandler
 from .handlers.whatsapp_handler import WhatsAppHandler
+from .handlers.samsung_handler import SamsungHandler
+from .handlers.pixel_handler import PixelHandler
+from .handlers.telegram_handler import TelegramHandler
+from .handlers.screenshot_handler import ScreenshotHandler
+from .handlers.datestamp_handler import DatestampHandler
+from .handlers.pymediainfo_handler import PyMediaInfoHandler
 from .steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
 from .services.processing_service import ProcessingService
 from .ui.app_window import AppWindow
@@ -31,6 +37,12 @@ def main():
     registry.register(PillowExifHandler())
     registry.register(ExifReadHandler())
     registry.register(WhatsAppHandler())
+    registry.register(SamsungHandler())
+    registry.register(PixelHandler())
+    registry.register(TelegramHandler())
+    registry.register(ScreenshotHandler())
+    registry.register(DatestampHandler())
+    registry.register(PyMediaInfoHandler())
 
     # 3. Pipeline steps
     file_finder = FileFinder()

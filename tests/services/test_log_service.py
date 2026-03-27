@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from src.models.file_result import FileResult
+from src.models.file_result import FileResult, FileStatus
 from src.models.processing_config import ProcessingConfig
 from src.services.log_service import LogService
-from src.services.processing_service import TimingStats
+from src.utils.timing import TimingStats
 
 
 def _make_config(**overrides) -> ProcessingConfig:
@@ -21,10 +21,10 @@ def _make_config(**overrides) -> ProcessingConfig:
     return ProcessingConfig(**defaults)
 
 
-def _make_result(name, status, destination=None, error=None) -> FileResult:
+def _make_result(name, status: FileStatus, destination=None, error=None) -> FileResult:
     r = FileResult(source=Path(f"/src/{name}"))
     r.status = status
-    r.destination = Path(f"/dst/{name}") if destination is None and status != "skipped" else destination
+    r.destination = Path(f"/dst/{name}") if destination is None and status != FileStatus.skipped else destination
     r.error = error
     return r
 
@@ -90,7 +90,7 @@ class TestLogServiceContent:
         assert expected_text in content
 
     def test_contains_source_and_destination_paths(self, write_log):
-        results = [_make_result("a.jpg", "success")]
+        results = [_make_result("a.jpg", FileStatus.success)]
         content = write_log(results=results).read_text(encoding="utf-8")
 
         assert str(Path("/src/a.jpg")) in content
@@ -98,7 +98,7 @@ class TestLogServiceContent:
         assert str(Path("/dst/a.jpg")) in content
 
     def test_contains_error_message(self, write_log):
-        results = [_make_result("bad.jpg", "error", destination=None, error="permission denied")]
+        results = [_make_result("bad.jpg", FileStatus.error, destination=None, error="permission denied")]
         content = write_log(results=results).read_text(encoding="utf-8")
         assert "permission denied" in content
 
@@ -107,11 +107,11 @@ class TestLogServiceSummary:
     @pytest.fixture
     def mixed_results(self):
         return [
-            _make_result("a.jpg", "success"),
-            _make_result("b.jpg", "success"),
-            _make_result("c.png", "skipped"),
-            _make_result("d.jpg", "error", destination=None, error="disk full"),
-            _make_result("e.jpg", "unknown"),
+            _make_result("a.jpg", FileStatus.success),
+            _make_result("b.jpg", FileStatus.success),
+            _make_result("c.png", FileStatus.skipped),
+            _make_result("d.jpg", FileStatus.error, destination=None, error="disk full"),
+            _make_result("e.jpg", FileStatus.unknown),
         ]
 
     @pytest.mark.parametrize("label, count", [
@@ -128,8 +128,8 @@ class TestLogServiceSummary:
     @pytest.mark.parametrize("status_label", ["[SUCCESS]", "[SKIPPED]"])
     def test_status_labels_present(self, write_log, status_label):
         results = [
-            _make_result("a.jpg", "success"),
-            _make_result("b.png", "skipped"),
+            _make_result("a.jpg", FileStatus.success),
+            _make_result("b.png", FileStatus.skipped),
         ]
         content = write_log(results=results).read_text(encoding="utf-8")
         assert status_label in content
@@ -173,13 +173,13 @@ class TestLogServiceStreaming:
         config = _make_config()
         path = log_service.begin(config)
 
-        r1 = _make_result("a.jpg", "success")
+        r1 = _make_result("a.jpg", FileStatus.success)
         log_service.log_result(r1)
         content = path.read_text(encoding="utf-8")
         assert "a.jpg" in content
         assert "[SUCCESS]" in content
 
-        r2 = _make_result("b.png", "error", destination=None, error="oops")
+        r2 = _make_result("b.png", FileStatus.error, destination=None, error="oops")
         log_service.log_result(r2)
         content = path.read_text(encoding="utf-8")
         assert "b.png" in content
@@ -191,18 +191,18 @@ class TestLogServiceStreaming:
 class TestLogServiceSafety:
     def test_log_result_before_begin_is_noop(self, log_service):
         """Calling log_result without begin() should not raise."""
-        log_service.log_result(_make_result("a.jpg", "success"))
+        log_service.log_result(_make_result("a.jpg", FileStatus.success))
 
     def test_finish_before_begin_is_noop(self, log_service):
         """Calling finish without begin() should not raise."""
         log_service.finish([])
 
     def test_unicode_filenames_in_log(self, write_log):
-        results = [_make_result("фото.jpg", "success")]
+        results = [_make_result("фото.jpg", FileStatus.success)]
         content = write_log(results=results).read_text(encoding="utf-8")
         assert "фото.jpg" in content
 
     def test_skipped_result_shows_dash_for_destination(self, write_log):
-        results = [_make_result("skip.jpg", "skipped")]
+        results = [_make_result("skip.jpg", FileStatus.skipped)]
         content = write_log(results=results).read_text(encoding="utf-8")
         assert "->  -" in content
