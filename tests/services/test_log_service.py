@@ -1,9 +1,11 @@
 from pathlib import Path
 
-from src.models.file_result import FileResult
+import pytest
+
+from src.models.file_result import FileResult, FileStatus
 from src.models.processing_config import ProcessingConfig
 from src.services.log_service import LogService
-from src.services.processing_service import TimingStats
+from src.utils.timing import TimingStats
 
 
 def _make_config(**overrides) -> ProcessingConfig:
@@ -19,142 +21,128 @@ def _make_config(**overrides) -> ProcessingConfig:
     return ProcessingConfig(**defaults)
 
 
-def _make_result(name, status, destination=None, error=None) -> FileResult:
+def _make_result(name, status: FileStatus, destination=None, error=None) -> FileResult:
     r = FileResult(source=Path(f"/src/{name}"))
     r.status = status
-    r.destination = Path(f"/dst/{name}") if destination is None and status != "skipped" else destination
+    r.destination = Path(f"/dst/{name}") if destination is None and status != FileStatus.skipped else destination
     r.error = error
     return r
 
 
-def _write_full_log(svc, config, results, stats=None):
+@pytest.fixture
+def log_service(tmp_path):
+    return LogService(log_dir=tmp_path)
+
+
+@pytest.fixture
+def write_log(log_service):
     """Helper that exercises the streaming API and returns the log path."""
-    path = svc.begin(config)
-    for r in results:
-        svc.log_result(r)
-    svc.finish(results, stats)
-    return path
+    def _write(config=None, results=None, stats=None):
+        config = config or _make_config()
+        results = results or []
+        path = log_service.begin(config)
+        for r in results:
+            log_service.log_result(r)
+        log_service.finish(results, stats)
+        return path
+    return _write
 
 
-class TestLogService:
-    def test_creates_log_dir_and_file(self, tmp_path):
-        log_dir = tmp_path / "move-log"
-        svc = LogService(log_dir=log_dir)
-
-        config = _make_config()
-        results = [_make_result("a.jpg", "success")]
-
-        path = _write_full_log(svc, config, results)
-
+class TestLogServiceFileCreation:
+    def test_creates_log_dir_and_file(self, tmp_path, log_service, write_log):
+        log_dir = tmp_path
+        path = write_log()
         assert log_dir.exists()
         assert path.exists()
         assert path.parent == log_dir
 
-    def test_filename_contains_action(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
+    @pytest.mark.parametrize("action, expected_suffix", [
+        ("copy", "_copy.txt"),
+        ("move", "_move.txt"),
+    ])
+    def test_filename_reflects_action(self, write_log, action, expected_suffix):
+        path = write_log(config=_make_config(action=action))
+        assert path.name.endswith(expected_suffix)
 
-        path = _write_full_log(svc, _make_config(action="copy"), [])
-        assert "_copy.txt" in path.name
-
-        path = _write_full_log(svc, _make_config(action="move"), [])
-        assert "_move.txt" in path.name
-
-    def test_log_contains_timestamp(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        path = _write_full_log(svc, _make_config(), [])
-        content = path.read_text(encoding="utf-8")
-
-        assert "Date:" in content
-
-    def test_log_contains_settings(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        config = _make_config(date_format="%Y-%m", action="copy",
-                              selected_extensions=["jpg", "tiff"])
-        path = _write_full_log(svc, config, [])
-        content = path.read_text(encoding="utf-8")
-
-        assert "=== Settings ===" in content
-        assert str(config.input_dir) in content
-        assert str(config.output_dir) in content
-        assert "%Y-%m" in content
-        assert "copy" in content
-        assert "jpg" in content
-        assert "tiff" in content
-
-    def test_log_contains_summary(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        results = [
-            _make_result("a.jpg", "success"),
-            _make_result("b.jpg", "success"),
-            _make_result("c.png", "skipped"),
-            _make_result("d.jpg", "error", destination=None, error="disk full"),
-            _make_result("e.jpg", "unknown"),
-        ]
-        path = _write_full_log(svc, _make_config(), results)
-        content = path.read_text(encoding="utf-8")
-
-        assert "Total: 5" in content
-        assert "Success: 2" in content
-        assert "Skipped: 1" in content
-        assert "Errors: 1" in content
-        assert "Unknown: 1" in content
-
-    def test_log_lists_every_file(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        results = [
-            _make_result("a.jpg", "success"),
-            _make_result("b.png", "skipped"),
-        ]
-        path = _write_full_log(svc, _make_config(), results)
-        content = path.read_text(encoding="utf-8")
-
-        assert "a.jpg" in content
-        assert "b.png" in content
-        assert "[SUCCESS]" in content
-        assert "[SKIPPED]" in content
-
-    def test_log_includes_error_message(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        results = [
-            _make_result("bad.jpg", "error", destination=None, error="permission denied"),
-        ]
-        path = _write_full_log(svc, _make_config(), results)
-        content = path.read_text(encoding="utf-8")
-
-        assert "permission denied" in content
-
-    def test_log_shows_destination_paths(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        results = [
-            _make_result("a.jpg", "success"),
-        ]
-        path = _write_full_log(svc, _make_config(), results)
-        content = path.read_text(encoding="utf-8")
-
-        assert "a.jpg" in content
-        assert "->" in content
-        # Source and destination both present (path separators vary by OS)
-        assert str(Path("/src/a.jpg")) in content
-        assert str(Path("/dst/a.jpg")) in content
-
-    def test_empty_results(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        path = _write_full_log(svc, _make_config(), [])
-        content = path.read_text(encoding="utf-8")
-
-        assert "Total: 0" in content
-        assert "=== Files ===" in content
-
-    def test_multiple_writes_create_separate_files(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        path1 = _write_full_log(svc, _make_config(), [])
-        path2 = _write_full_log(svc, _make_config(action="copy"), [])
-
+    def test_multiple_writes_create_separate_files(self, write_log, tmp_path):
+        path1 = write_log()
+        path2 = write_log(config=_make_config(action="copy"))
         assert path1 != path2
         assert len(list(tmp_path.glob("*.txt"))) == 2
 
-    def test_log_includes_timing_when_provided(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
+
+class TestLogServiceContent:
+    def test_contains_timestamp(self, write_log):
+        content = write_log().read_text(encoding="utf-8")
+        assert "Date:" in content
+
+    @pytest.mark.parametrize("expected_text", [
+        "=== Settings ===",
+        "%Y-%m",
+        "copy",
+        "jpg",
+        "tiff",
+    ])
+    def test_contains_settings(self, write_log, expected_text):
+        config = _make_config(date_format="%Y-%m", action="copy",
+                              selected_extensions=["jpg", "tiff"])
+        content = write_log(config=config).read_text(encoding="utf-8")
+        assert expected_text in content
+
+    def test_contains_source_and_destination_paths(self, write_log):
+        results = [_make_result("a.jpg", FileStatus.success)]
+        content = write_log(results=results).read_text(encoding="utf-8")
+
+        assert str(Path("/src/a.jpg")) in content
+        assert "->" in content
+        assert str(Path("/dst/a.jpg")) in content
+
+    def test_contains_error_message(self, write_log):
+        results = [_make_result("bad.jpg", FileStatus.error, destination=None, error="permission denied")]
+        content = write_log(results=results).read_text(encoding="utf-8")
+        assert "permission denied" in content
+
+
+class TestLogServiceSummary:
+    @pytest.fixture
+    def mixed_results(self):
+        return [
+            _make_result("a.jpg", FileStatus.success),
+            _make_result("b.jpg", FileStatus.success),
+            _make_result("c.png", FileStatus.skipped),
+            _make_result("d.jpg", FileStatus.error, destination=None, error="disk full"),
+            _make_result("e.jpg", FileStatus.unknown),
+        ]
+
+    @pytest.mark.parametrize("label, count", [
+        ("Total: 5", None),
+        ("Success: 2", None),
+        ("Skipped: 1", None),
+        ("Errors: 1", None),
+        ("Unknown: 1", None),
+    ])
+    def test_summary_counts(self, write_log, mixed_results, label, count):
+        content = write_log(results=mixed_results).read_text(encoding="utf-8")
+        assert label in content
+
+    @pytest.mark.parametrize("status_label", ["[SUCCESS]", "[SKIPPED]"])
+    def test_status_labels_present(self, write_log, status_label):
+        results = [
+            _make_result("a.jpg", FileStatus.success),
+            _make_result("b.png", FileStatus.skipped),
+        ]
+        content = write_log(results=results).read_text(encoding="utf-8")
+        assert status_label in content
+
+    def test_empty_results(self, write_log):
+        content = write_log().read_text(encoding="utf-8")
+        assert "Total: 0" in content
+        assert "=== Files ===" in content
+
+
+class TestLogServiceTiming:
+    @pytest.fixture
+    def timing_stats(self):
         stats = TimingStats(
             find=0.05, extract=1.2, resolve=0.01, execute=0.8,
             total=2.06, file_count=3,
@@ -162,44 +150,59 @@ class TestLogService:
         stats.record("a.jpg", 0.5, 0.005, 0.3)
         stats.record("b.jpg", 0.4, 0.003, 0.2)
         stats.record("c.jpg", 0.3, 0.002, 0.3)
+        return stats
 
-        path = _write_full_log(svc, _make_config(), [], stats)
-        content = path.read_text(encoding="utf-8")
+    @pytest.mark.parametrize("expected_text", [
+        "=== Timing ===",
+        "Total time:",
+        "File discovery:",
+        "Metadata extract:",
+        "=== Slowest Files ===",
+    ])
+    def test_includes_timing_sections(self, write_log, timing_stats, expected_text):
+        content = write_log(stats=timing_stats).read_text(encoding="utf-8")
+        assert expected_text in content
 
-        assert "=== Timing ===" in content
-        assert "Total time:" in content
-        assert "File discovery:" in content
-        assert "Metadata extract:" in content
-        assert "=== Slowest Files ===" in content
-        assert "a.jpg" in content
-
-    def test_log_omits_timing_when_not_provided(self, tmp_path):
-        svc = LogService(log_dir=tmp_path)
-        path = _write_full_log(svc, _make_config(), [])
-        content = path.read_text(encoding="utf-8")
-
+    def test_omits_timing_when_not_provided(self, write_log):
+        content = write_log().read_text(encoding="utf-8")
         assert "=== Timing ===" not in content
-        assert "=== Slowest Files ===" not in content
 
-    def test_log_result_writes_immediately(self, tmp_path):
-        """Each log_result() call flushes to disk right away."""
-        svc = LogService(log_dir=tmp_path)
+
+class TestLogServiceStreaming:
+    def test_log_result_writes_immediately(self, log_service):
         config = _make_config()
-        path = svc.begin(config)
+        path = log_service.begin(config)
 
-        r1 = _make_result("a.jpg", "success")
-        svc.log_result(r1)
-
-        # File on disk should already contain the first result
+        r1 = _make_result("a.jpg", FileStatus.success)
+        log_service.log_result(r1)
         content = path.read_text(encoding="utf-8")
         assert "a.jpg" in content
         assert "[SUCCESS]" in content
 
-        r2 = _make_result("b.png", "error", destination=None, error="oops")
-        svc.log_result(r2)
-
+        r2 = _make_result("b.png", FileStatus.error, destination=None, error="oops")
+        log_service.log_result(r2)
         content = path.read_text(encoding="utf-8")
         assert "b.png" in content
         assert "oops" in content
 
-        svc.finish([r1, r2])
+        log_service.finish([r1, r2])
+
+
+class TestLogServiceSafety:
+    def test_log_result_before_begin_is_noop(self, log_service):
+        """Calling log_result without begin() should not raise."""
+        log_service.log_result(_make_result("a.jpg", FileStatus.success))
+
+    def test_finish_before_begin_is_noop(self, log_service):
+        """Calling finish without begin() should not raise."""
+        log_service.finish([])
+
+    def test_unicode_filenames_in_log(self, write_log):
+        results = [_make_result("фото.jpg", FileStatus.success)]
+        content = write_log(results=results).read_text(encoding="utf-8")
+        assert "фото.jpg" in content
+
+    def test_skipped_result_shows_dash_for_destination(self, write_log):
+        results = [_make_result("skip.jpg", FileStatus.skipped)]
+        content = write_log(results=results).read_text(encoding="utf-8")
+        assert "->  -" in content

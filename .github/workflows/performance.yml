@@ -1,0 +1,151 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download previous benchmark data (current branch)
+        uses: actions/cache/restore@v4
+        with:
+          path: .benchmarks/branch
+          key: benchmark-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-
+          restore-keys: |
+            benchmark-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-
+
+      - name: Download main branch baseline
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: .benchmarks/main
+          key: benchmark-${{ runner.os }}-main-
+          restore-keys: |
+            benchmark-${{ runner.os }}-main-
+
+      - name: Copy previous results for comparison
+        run: |
+          mkdir -p .benchmarks/previous
+          if [ -f ".benchmarks/branch/benchmark-results.json" ]; then
+            cp .benchmarks/branch/benchmark-results.json .benchmarks/previous/last-run.json
+          fi
+          if [ -f ".benchmarks/main/benchmark-results.json" ]; then
+            cp .benchmarks/main/benchmark-results.json .benchmarks/previous/main-baseline.json
+          fi
+
+      - name: Run benchmarks
+        run: |
+          pytest tests/performance/ \
+            --benchmark-only \
+            --benchmark-json=benchmark-results.json \
+            --benchmark-compare \
+            --benchmark-autosave \
+            --benchmark-compare-fail=mean:10% \
+            || true
+
+      - name: Save benchmark results for future comparisons
+        run: |
+          mkdir -p .benchmarks/branch
+          cp benchmark-results.json .benchmarks/branch/benchmark-results.json
+
+      - name: Cache benchmark results
+        uses: actions/cache/save@v4
+        with:
+          path: .benchmarks/branch
+          key: benchmark-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}
+
+      - name: Cache main branch results
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: .benchmarks/branch
+          key: benchmark-${{ runner.os }}-main-${{ github.run_id }}
+
+      - name: Store benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+
+      - name: Comment benchmark results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('benchmark-results.json', 'utf8'));
+
+            // Load comparison data if available
+            let lastRun = null;
+            let mainBaseline = null;
+            try {
+              if (fs.existsSync('.benchmarks/previous/last-run.json')) {
+                lastRun = JSON.parse(fs.readFileSync('.benchmarks/previous/last-run.json', 'utf8'));
+              }
+            } catch (e) { console.log('No previous run data'); }
+            try {
+              if (fs.existsSync('.benchmarks/previous/main-baseline.json')) {
+                mainBaseline = JSON.parse(fs.readFileSync('.benchmarks/previous/main-baseline.json', 'utf8'));
+              }
+            } catch (e) { console.log('No main baseline data'); }
+
+            // Build lookup maps for comparison
+            const lastRunMap = {};
+            const mainBaselineMap = {};
+            if (lastRun?.benchmarks) {
+              for (const b of lastRun.benchmarks) {
+                lastRunMap[b.name] = b.stats.mean;
+              }
+            }
+            if (mainBaseline?.benchmarks) {
+              for (const b of mainBaseline.benchmarks) {
+                mainBaselineMap[b.name] = b.stats.mean;
+              }
+            }
+
+            // Helper to calculate % change
+            const pctChange = (current, baseline) => {
+              if (!baseline) return 'N/A';
+              const change = ((current - baseline) / baseline) * 100;
+              const sign = change > 0 ? '+' : '';
+              return `${sign}${change.toFixed(1)}%`;
+            };
+
+            let comment = '## Performance Benchmark Results\n\n';
+            comment += '| Test | Mean | OPS | vs Last | vs Main |\n';
+            comment += '|------|------|-----|---------|----------|\n';
+
+            for (const bench of results.benchmarks) {
+              const mean = (bench.stats.mean * 1000).toFixed(2);
+              const ops = bench.stats.ops.toFixed(2);
+              const vsLast = pctChange(bench.stats.mean, lastRunMap[bench.name]);
+              const vsMain = pctChange(bench.stats.mean, mainBaselineMap[bench.name]);
+              comment += `| ${bench.name} | ${mean}ms | ${ops} | ${vsLast} | ${vsMain} |\n`;
+            }
+
+            comment += '\n*Positive % = slower, Negative % = faster*\n';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from ..models.file_result import FileResult
+from ..models.file_result import FileResult, FileStatus
 from ..models.processing_config import ProcessingConfig
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ def _base_dir() -> Path:
 
 
 def _format_result(r: FileResult) -> str:
-    status = r.status.upper()
+    status = str(r.status.value).upper()
     dest = str(r.destination) if r.destination else "-"
     line = f"  [{status:>7}]  {r.source}  ->  {dest}"
     if r.error:
@@ -73,10 +73,10 @@ class LogService:
 
         self._writeln("")
 
-        success = sum(1 for r in results if r.status == "success")
-        unknown = sum(1 for r in results if r.status == "unknown")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        errors = sum(1 for r in results if r.status == "error")
+        success = sum(1 for r in results if r.status == FileStatus.success)
+        unknown = sum(1 for r in results if r.status == FileStatus.unknown)
+        skipped = sum(1 for r in results if r.status == FileStatus.skipped)
+        errors = sum(1 for r in results if r.status == FileStatus.error)
         self._writeln("=== Summary ===")
         self._writeln(f"  Total: {len(results)}  |  Success: {success}  |  Unknown: {unknown}  |  Skipped: {skipped}  |  Errors: {errors}")
         self._writeln("")

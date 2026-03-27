@@ -11,6 +11,7 @@ class ProcessingConfig:
     selected_extensions: list[str] = None
     handle_unknown: bool = True
     unknown_folder_name: str = ".unknown"
+    dry_run: bool = False
 
     def __post_init__(self):
         if self.selected_extensions is None:
