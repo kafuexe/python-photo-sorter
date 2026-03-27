@@ -4,3 +4,4 @@ pyexiftool>=0.5
 pymediainfo>=6.0
 customtkinter>=5.2
 pytest>=9.0
+pytest-benchmark>=4.0
