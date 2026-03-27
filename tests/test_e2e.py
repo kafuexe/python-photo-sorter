@@ -12,6 +12,7 @@ from src.handlers.whatsapp_handler import WhatsAppHandler
 from src.services.config_service import ConfigService
 from src.services.processing_service import ProcessingService
 from src.steps import FileFinder, MetadataExtractor, DestinationResolver, FileExecutor
+from src.models.file_result import FileStatus
 from src.models.processing_config import ProcessingConfig
 
 
@@ -78,7 +79,7 @@ class TestE2ECopyMove:
         results, _ = service.process(config)
 
         assert len(results) == 1
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert (output_dir / "2024" / "06" / "15" / "photo.jpg").exists()
         assert (input_dir / "photo.jpg").exists() == source_survives
 
@@ -93,7 +94,7 @@ class TestE2ECopyMove:
         results, _ = service.process(config)
 
         assert len(results) == 2
-        assert all(r.status == "success" for r in results)
+        assert all(r.status == FileStatus.success for r in results)
         assert (output_dir / "2024" / "06" / "15" / "summer.jpg").exists()
         assert (output_dir / "2024" / "12" / "25" / "winter.jpg").exists()
 
@@ -126,7 +127,7 @@ class TestE2EUnknownHandling:
 
         results, _ = service.process(config)
 
-        assert results[0].status == "unknown"
+        assert results[0].status == FileStatus.unknown
         assert results[0].metadata.get("date") is None
         assert results[0].destination.exists()
 
@@ -141,7 +142,7 @@ class TestE2EUnknownHandling:
 
         results, _ = service.process(config)
 
-        assert results[0].status == "unknown"
+        assert results[0].status == FileStatus.unknown
         assert (output_dir / ".nodate" / "notes.txt").exists()
 
     def test_unknown_files_skipped_when_disabled(self, dirs):
@@ -161,7 +162,7 @@ class TestE2EUnknownHandling:
 
         results, _ = service.process(config)
 
-        assert results[0].status == "skipped"
+        assert results[0].status == FileStatus.skipped
         assert not any(output_dir.rglob("*"))
 
 
@@ -182,8 +183,8 @@ class TestE2ECollisions:
         results, _ = service.process(config)
 
         statuses = [r.status for r in results]
-        assert statuses.count("success") == 1
-        assert statuses.count("skipped") == 1
+        assert statuses.count(FileStatus.success) == 1
+        assert statuses.count(FileStatus.skipped) == 1
 
         dest_files = list((output_dir / "2024" / "01" / "01").iterdir())
         assert len(dest_files) == 1
@@ -217,7 +218,7 @@ class TestE2EProgressCallback:
         results, _ = service.process(config, on_progress=progress.append)
 
         assert len(progress) == 3
-        assert all(r.status == "success" for r in results)
+        assert all(r.status == FileStatus.success for r in results)
 
 
 class TestE2EConfigRoundtrip:
@@ -280,7 +281,7 @@ class TestE2EWhatsApp:
         results, _ = whatsapp_pipeline.process(config)
 
         assert len(results) == 1
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert (output_dir / "2023" / "04" / "15" / "IMG-20230415-WA0012.jpg").exists()
 
     def test_whatsapp_video_sorted_by_filename_date(self, whatsapp_pipeline, dirs):
@@ -292,7 +293,7 @@ class TestE2EWhatsApp:
         results, _ = whatsapp_pipeline.process(config)
 
         assert len(results) == 1
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert (output_dir / "2022" / "08" / "VID-20220801-WA0003.mp4").exists()
 
     def test_whatsapp_handler_wins_when_no_exif(self, whatsapp_pipeline, dirs):
@@ -303,7 +304,7 @@ class TestE2EWhatsApp:
         config = make_config(input_dir, output_dir)
         results, _ = whatsapp_pipeline.process(config)
 
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert results[0].metadata["date"] == datetime(2021, 6, 1)
 
     def test_non_whatsapp_file_still_goes_to_unknown(self, whatsapp_pipeline, dirs):
@@ -314,7 +315,7 @@ class TestE2EWhatsApp:
         config = make_config(input_dir, output_dir, handle_unknown=True)
         results, _ = whatsapp_pipeline.process(config)
 
-        assert results[0].status == "unknown"
+        assert results[0].status == FileStatus.unknown
 
 
 class TestE2EHandlerPriority:

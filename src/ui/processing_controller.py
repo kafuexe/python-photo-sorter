@@ -8,7 +8,7 @@ from tkinter import ttk
 
 import customtkinter as ctk
 
-from ..models.file_result import FileResult
+from ..models.file_result import FileResult, FileStatus
 from ..models.processing_config import ProcessingConfig
 from ..services.log_service import LogService
 from ..services.processing_service import ProcessingService
@@ -242,13 +242,13 @@ class ProcessingController:
         self._processed_count += 1
 
         # Update status counters
-        if result.status == "success":
+        if result.status == FileStatus.success:
             self._success_count += 1
-        elif result.status == "unknown":
+        elif result.status == FileStatus.unknown:
             self._unknown_count += 1
-        elif result.status == "skipped":
+        elif result.status == FileStatus.skipped:
             self._skipped_count += 1
-        elif result.status == "error":
+        elif result.status == FileStatus.error:
             self._error_count += 1
 
         # Progress bar and count
@@ -324,10 +324,10 @@ class ProcessingController:
         self._btn_dry_run.configure(text="Dry Run", state=tk.NORMAL)
         self._progress_frame.grid_remove()
 
-        success = sum(1 for r in results if r.status == "success")
-        unknown = sum(1 for r in results if r.status == "unknown")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        errors = sum(1 for r in results if r.status == "error")
+        success = sum(1 for r in results if r.status == FileStatus.success)
+        unknown = sum(1 for r in results if r.status == FileStatus.unknown)
+        skipped = sum(1 for r in results if r.status == FileStatus.skipped)
+        errors = sum(1 for r in results if r.status == FileStatus.error)
 
         summary = f"Would sort {success} files, {unknown} unknown, {skipped} skipped, {errors} errors"
         self._tree_summary_label.configure(text=summary)
@@ -346,10 +346,10 @@ class ProcessingController:
         self._btn_dry_run.configure(state=tk.NORMAL)
         self._progress_frame.grid_remove()
 
-        success = sum(1 for r in results if r.status == "success")
-        unknown = sum(1 for r in results if r.status == "unknown")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        errors = sum(1 for r in results if r.status == "error")
+        success = sum(1 for r in results if r.status == FileStatus.success)
+        unknown = sum(1 for r in results if r.status == FileStatus.unknown)
+        skipped = sum(1 for r in results if r.status == FileStatus.skipped)
+        errors = sum(1 for r in results if r.status == FileStatus.error)
 
         summary = f"Done! {success} sorted, {unknown} unknown, {skipped} skipped, {errors} errors. ({stats.total:.1f}s)"
         self._status_var.set(summary)

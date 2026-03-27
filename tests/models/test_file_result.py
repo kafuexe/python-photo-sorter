@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.models.file_result import FileResult
+from src.models.file_result import FileResult, FileStatus
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def default_result():
 class TestFileResultDefaults:
     @pytest.mark.parametrize("attr, expected", [
         ("destination", None),
-        ("status", "pending"),
+        ("status", FileStatus.pending),
         ("error", None),
         ("metadata", {}),
     ])

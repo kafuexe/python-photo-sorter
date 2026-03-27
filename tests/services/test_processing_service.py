@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.models.file_result import FileStatus
 from src.models.processing_config import ProcessingConfig
 from src.services.processing_service import ProcessingService
 
@@ -64,13 +65,13 @@ class TestProcessingServiceResults:
         results, _ = service.process(make_config(tmp_path))
 
         assert len(results) == 1
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert results[0].destination == dest
         executor.execute.assert_called_once_with(src, dest, "copy")
 
     @pytest.mark.parametrize("handle_unknown, dest, expected_status", [
-        (False, None,                          "skipped"),
-        (True,  Path("/out/.unknown/photo.jpg"), "unknown"),
+        (False, None,                          FileStatus.skipped),
+        (True,  Path("/out/.unknown/photo.jpg"), FileStatus.unknown),
     ])
     def test_no_date_handling(self, pipeline, tmp_path, handle_unknown, dest, expected_status):
         service, finder, extractor, resolver, executor = pipeline
@@ -81,7 +82,7 @@ class TestProcessingServiceResults:
         results, _ = service.process(make_config(tmp_path, handle_unknown=handle_unknown))
 
         assert results[0].status == expected_status
-        if expected_status == "skipped":
+        if expected_status == FileStatus.skipped:
             executor.execute.assert_not_called()
 
     def test_error_handling(self, pipeline, tmp_path):
@@ -93,7 +94,7 @@ class TestProcessingServiceResults:
 
         results, _ = service.process(make_config(tmp_path))
 
-        assert results[0].status == "error"
+        assert results[0].status == FileStatus.error
         assert "disk full" in results[0].error
 
     def test_extractor_exception_produces_error_result(self, pipeline, tmp_path):
@@ -103,7 +104,7 @@ class TestProcessingServiceResults:
 
         results, _ = service.process(make_config(tmp_path))
 
-        assert results[0].status == "error"
+        assert results[0].status == FileStatus.error
         assert "corrupt file" in results[0].error
 
     def test_resolver_exception_produces_error_result(self, pipeline, tmp_path):
@@ -114,7 +115,7 @@ class TestProcessingServiceResults:
 
         results, _ = service.process(make_config(tmp_path))
 
-        assert results[0].status == "error"
+        assert results[0].status == FileStatus.error
         assert "bad format" in results[0].error
 
     def test_executor_returns_false_means_skipped(self, pipeline, tmp_path):
@@ -125,7 +126,7 @@ class TestProcessingServiceResults:
         executor.execute.return_value = False
 
         results, _ = service.process(make_config(tmp_path))
-        assert results[0].status == "skipped"
+        assert results[0].status == FileStatus.skipped
 
     def test_metadata_stores_on_result(self, pipeline, tmp_path):
         service, finder, extractor, resolver, _ = pipeline
@@ -245,7 +246,7 @@ class TestProcessingServiceDryRun:
         results, _ = service.process(config)
 
         assert len(results) == 1
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert results[0].destination == dest
         executor.execute.assert_not_called()
 
@@ -259,7 +260,7 @@ class TestProcessingServiceDryRun:
         config = make_config(tmp_path, dry_run=True, handle_unknown=True)
         results, _ = service.process(config)
 
-        assert results[0].status == "unknown"
+        assert results[0].status == FileStatus.unknown
         assert results[0].destination == Path("/out/.unknown/photo.jpg")
         executor.execute.assert_not_called()
 
@@ -274,7 +275,7 @@ class TestProcessingServiceDryRun:
         results, _ = service.process(config)
 
         # With no date and handle_unknown=False, but dest is resolved, status is success
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         executor.execute.assert_not_called()
 
     def test_dry_run_skips_when_dest_exists_on_disk(self, pipeline, tmp_path):
@@ -294,7 +295,7 @@ class TestProcessingServiceDryRun:
         config = make_config(tmp_path, dry_run=True)
         results, _ = service.process(config)
 
-        assert results[0].status == "skipped"
+        assert results[0].status == FileStatus.skipped
         executor.execute.assert_not_called()
 
     def test_dry_run_skips_duplicate_destinations(self, pipeline, tmp_path):
@@ -310,9 +311,9 @@ class TestProcessingServiceDryRun:
         results, _ = service.process(config)
 
         assert len(results) == 2
-        assert results[0].status == "success"
+        assert results[0].status == FileStatus.success
         assert results[0].destination == dest
-        assert results[1].status == "skipped"  # Second file skipped - dest claimed
+        assert results[1].status == FileStatus.skipped  # Second file skipped - dest claimed
         executor.execute.assert_not_called()
 
 

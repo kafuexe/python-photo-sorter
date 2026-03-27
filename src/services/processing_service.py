@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
-from ..models.file_result import FileResult
+from ..models.file_result import FileResult, FileStatus
 from ..models.processing_config import ProcessingConfig
 from ..steps.file_finder import BaseFileFinder
 from ..steps.metadata_extractor import BaseMetadataExtractor
@@ -159,7 +159,7 @@ class ProcessingService:
             stats.record(file_path.name, t_extract, t_resolve, t_execute)
 
         except Exception as e:
-            result.status = "error"
+            result.status = FileStatus.error
             result.error = str(e)
             logger.exception("Error processing %s", file_path)
 
@@ -167,24 +167,24 @@ class ProcessingService:
 
     def _execute(self, file_path, destination, metadata, config, claimed_dests):
         if destination is None:
-            return "skipped", None
+            return FileStatus.skipped, None
 
         if config.dry_run:
             key = str(destination)
             if destination.exists() or key in claimed_dests:
-                return "skipped", None
+                return FileStatus.skipped, None
 
             claimed_dests.add(key)
-            status = "unknown" if (not metadata.get("date") and config.handle_unknown) else "success"
+            status = FileStatus.unknown if (not metadata.get("date") and config.handle_unknown) else FileStatus.success
             return status, destination
 
         if not self._executor.execute(file_path, destination, config.action):
-            return "skipped", None
+            return FileStatus.skipped, None
 
         if not metadata.get("date") and config.handle_unknown:
-            return "unknown", destination
+            return FileStatus.unknown, destination
 
-        return "success", destination
+        return FileStatus.success, destination
 
     @staticmethod
     def _timed(fn: Callable[[], any]) -> tuple[any, float]:
