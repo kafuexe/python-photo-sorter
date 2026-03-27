@@ -1,0 +1,76 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download previous benchmark data
+        uses: actions/cache@v4
+        with:
+          path: .benchmarks
+          key: benchmark-${{ runner.os }}-${{ hashFiles('tests/performance/**') }}
+          restore-keys: |
+            benchmark-${{ runner.os }}-
+
+      - name: Run benchmarks
+        run: |
+          pytest tests/performance/ \
+            --benchmark-only \
+            --benchmark-json=benchmark-results.json \
+            --benchmark-compare \
+            --benchmark-autosave \
+            --benchmark-compare-fail=mean:10% \
+            || true
+
+      - name: Store benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+
+      - name: Comment benchmark results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('benchmark-results.json', 'utf8'));
+
+            let comment = '## Performance Benchmark Results\n\n';
+            comment += '| Test | Min | Mean | Max | OPS |\n';
+            comment += '|------|-----|------|-----|-----|\n';
+
+            for (const bench of results.benchmarks) {
+              const min = (bench.stats.min * 1000).toFixed(2);
+              const mean = (bench.stats.mean * 1000).toFixed(2);
+              const max = (bench.stats.max * 1000).toFixed(2);
+              const ops = bench.stats.ops.toFixed(2);
+              comment += `| ${bench.name} | ${min}ms | ${mean}ms | ${max}ms | ${ops} |\n`;
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
