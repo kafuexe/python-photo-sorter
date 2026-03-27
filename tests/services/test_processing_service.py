@@ -277,6 +277,44 @@ class TestProcessingServiceDryRun:
         assert results[0].status == "success"
         executor.execute.assert_not_called()
 
+    def test_dry_run_skips_when_dest_exists_on_disk(self, pipeline, tmp_path):
+        """Dry run should mark as skipped if destination file already exists."""
+        service, finder, extractor, resolver, executor = pipeline
+
+        # Create actual destination file
+        out_dir = tmp_path / "output" / "2024" / "01"
+        out_dir.mkdir(parents=True)
+        existing_dest = out_dir / "photo.jpg"
+        existing_dest.write_text("existing")
+
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = existing_dest
+
+        config = make_config(tmp_path, dry_run=True)
+        results, _ = service.process(config)
+
+        assert results[0].status == "skipped"
+        executor.execute.assert_not_called()
+
+    def test_dry_run_skips_duplicate_destinations(self, pipeline, tmp_path):
+        """Dry run should mark as skipped if two files resolve to same destination."""
+        service, finder, extractor, resolver, executor = pipeline
+        dest = Path("/out/2024/01/01/photo.jpg")
+
+        finder.find.return_value = [Path("/in/photo1.jpg"), Path("/in/photo2.jpg")]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = dest  # Both resolve to same destination
+
+        config = make_config(tmp_path, dry_run=True)
+        results, _ = service.process(config)
+
+        assert len(results) == 2
+        assert results[0].status == "success"
+        assert results[0].destination == dest
+        assert results[1].status == "skipped"  # Second file skipped - dest claimed
+        executor.execute.assert_not_called()
+
 
 class TestProcessingServiceCancelEvent:
     def test_cancel_event_stops_processing(self, pipeline, tmp_path):
