@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
@@ -24,7 +25,9 @@ class ProcessingController:
                  get_format, get_unknown,
                  btn_move: ctk.CTkButton, btn_copy: ctk.CTkButton,
                  progress_frame: ctk.CTkFrame, progress_bar: ctk.CTkProgressBar,
-                 progress_label: ctk.CTkLabel, status_var: tk.StringVar):
+                 progress_label: ctk.CTkLabel, timing_label: ctk.CTkLabel,
+                 breakdown_label: ctk.CTkLabel, current_file_label: ctk.CTkLabel,
+                 status_var: tk.StringVar):
         self._window = window
         self._processing_service = processing_service
         self._log_service = log_service
@@ -38,10 +41,18 @@ class ProcessingController:
         self._progress_frame = progress_frame
         self._progress_bar = progress_bar
         self._progress_label = progress_label
+        self._timing_label = timing_label
+        self._breakdown_label = breakdown_label
+        self._current_file_label = current_file_label
         self._status_var = status_var
         self._processing = False
         self._processed_count = 0
         self._total_count = 0
+        self._start_time: float = 0.0
+        self._success_count = 0
+        self._unknown_count = 0
+        self._skipped_count = 0
+        self._error_count = 0
 
     @property
     def is_processing(self) -> bool:
@@ -68,8 +79,16 @@ class ProcessingController:
 
         self._processed_count = 0
         self._total_count = 0
+        self._success_count = 0
+        self._unknown_count = 0
+        self._skipped_count = 0
+        self._error_count = 0
+        self._start_time = time.perf_counter()
         self._progress_bar.set(0)
         self._progress_label.configure(text="0/0")
+        self._timing_label.configure(text="0.0s elapsed")
+        self._breakdown_label.configure(text="\u2713 0 sorted  \u2b21 0 unknown  \u2298 0 skipped  \u2717 0 errors")
+        self._current_file_label.configure(text="")
         self._progress_frame.grid()
         logger.info("Starting %s operation", action)
 
@@ -140,9 +159,45 @@ class ProcessingController:
 
     def _on_progress(self, result: FileResult) -> None:
         self._processed_count += 1
+
+        # Update status counters
+        if result.status == "success":
+            self._success_count += 1
+        elif result.status == "unknown":
+            self._unknown_count += 1
+        elif result.status == "skipped":
+            self._skipped_count += 1
+        elif result.status == "error":
+            self._error_count += 1
+
+        # Progress bar and count
         if self._total_count > 0:
             self._progress_bar.set(self._processed_count / self._total_count)
         self._progress_label.configure(text=f"{self._processed_count}/{self._total_count}")
+
+        # Timing calculations
+        elapsed = time.perf_counter() - self._start_time
+        throughput = self._processed_count / elapsed if elapsed > 0 else 0.0
+        remaining = self._total_count - self._processed_count
+        eta = (elapsed / self._processed_count) * remaining if self._processed_count > 0 else 0.0
+        self._timing_label.configure(
+            text=f"{elapsed:.1f}s elapsed \u2014 ~{eta:.1f}s remaining \u2014 {throughput:.1f} files/sec"
+        )
+
+        # Status breakdown
+        self._breakdown_label.configure(
+            text=f"\u2713 {self._success_count} sorted  \u2b21 {self._unknown_count} unknown  \u2298 {self._skipped_count} skipped  \u2717 {self._error_count} errors"
+        )
+
+        # Current file line
+        if result.destination:
+            dest_display = str(result.destination)
+        else:
+            dest_display = result.status
+        self._current_file_label.configure(
+            text=f"Processing: {result.source.name} \u2192 {dest_display}"
+        )
+
         self._status_var.set(f"Processing: {result.source.name} \u2014 {result.status}")
 
     def _on_complete(self, results: list[FileResult], stats, log_path) -> None:

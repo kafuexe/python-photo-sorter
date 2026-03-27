@@ -169,7 +169,25 @@ class AppWindow(ctk.CTk):
         self._progress_label = ctk.CTkLabel(self._progress_frame, text="0/0",
                                             font=ctk.CTkFont(size=11, weight="bold"),
                                             text_color=FG_DIM)
-        self._progress_label.grid(row=1, column=0, pady=(0, 6))
+        self._progress_label.grid(row=1, column=0, pady=(0, 2))
+
+        # Timing line: elapsed, ETA, throughput
+        self._timing_label = ctk.CTkLabel(self._progress_frame, text="",
+                                          font=ctk.CTkFont(size=11),
+                                          text_color=FG_DIM)
+        self._timing_label.grid(row=2, column=0, pady=(0, 2))
+
+        # Status breakdown: success/unknown/skipped/error counters
+        self._breakdown_label = ctk.CTkLabel(self._progress_frame, text="",
+                                             font=ctk.CTkFont(size=11),
+                                             text_color=FG_DIM)
+        self._breakdown_label.grid(row=3, column=0, pady=(0, 2))
+
+        # Current file line: source -> destination
+        self._current_file_label = ctk.CTkLabel(self._progress_frame, text="",
+                                                font=ctk.CTkFont(size=11),
+                                                text_color=FG_DIM)
+        self._current_file_label.grid(row=4, column=0, pady=(0, 6))
 
         # ── Actions ──
         action_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -225,6 +243,9 @@ class AppWindow(ctk.CTk):
             progress_frame=self._progress_frame,
             progress_bar=self._progress_bar,
             progress_label=self._progress_label,
+            timing_label=self._timing_label,
+            breakdown_label=self._breakdown_label,
+            current_file_label=self._current_file_label,
             status_var=self._status_var,
         )
 
