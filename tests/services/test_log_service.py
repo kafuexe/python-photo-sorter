@@ -5,7 +5,7 @@ import pytest
 from src.models.file_result import FileResult, FileStatus
 from src.models.processing_config import ProcessingConfig
 from src.services.log_service import LogService
-from src.services.processing_service import TimingStats
+from src.utils.timing import TimingStats
 
 
 def _make_config(**overrides) -> ProcessingConfig:
