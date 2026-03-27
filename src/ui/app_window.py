@@ -1,6 +1,7 @@
 import logging
 import sys
 import tkinter as tk
+from tkinter import ttk
 import customtkinter as ctk
 from pathlib import Path
 
@@ -189,9 +190,41 @@ class AppWindow(ctk.CTk):
                                                 text_color=FG_DIM)
         self._current_file_label.grid(row=4, column=0, pady=(0, 6))
 
+        # ── Tree Preview Panel (hidden by default) ──
+        self._tree_frame = ctk.CTkFrame(self, fg_color=BG_SURFACE, corner_radius=8)
+        self._tree_frame.grid(row=4, column=0, sticky=tk.NSEW, padx=20, pady=(12, 0))
+        self._tree_frame.grid_remove()
+        self._tree_frame.grid_columnconfigure(0, weight=1)
+        self._tree_frame.grid_rowconfigure(0, weight=1)
+
+        # Configure ttk style for treeview to match dark theme
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Treeview",
+                        background=BG_INPUT,
+                        foreground=FG,
+                        fieldbackground=BG_INPUT,
+                        borderwidth=0)
+        style.configure("Treeview.Heading",
+                        background=BG_SURFACE,
+                        foreground=FG_HEADING)
+        style.map("Treeview", background=[("selected", ACCENT)])
+
+        self._tree_view = ttk.Treeview(self._tree_frame, show="tree", selectmode="none")
+        self._tree_view.grid(row=0, column=0, sticky=tk.NSEW, padx=12, pady=(8, 4))
+
+        tree_scroll = ttk.Scrollbar(self._tree_frame, orient=tk.VERTICAL, command=self._tree_view.yview)
+        tree_scroll.grid(row=0, column=1, sticky=tk.NS, pady=(8, 4))
+        self._tree_view.configure(yscrollcommand=tree_scroll.set)
+
+        self._tree_summary_label = ctk.CTkLabel(self._tree_frame, text="",
+                                                 font=ctk.CTkFont(size=12, weight="bold"),
+                                                 text_color=FG_DIM)
+        self._tree_summary_label.grid(row=1, column=0, columnspan=2, pady=(4, 8))
+
         # ── Actions ──
         action_frame = ctk.CTkFrame(self, fg_color="transparent")
-        action_frame.grid(row=4, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
+        action_frame.grid(row=5, column=0, sticky=tk.EW, padx=20, pady=(12, 0))
 
         self._btn_copy = ctk.CTkButton(action_frame, text="Copy Files",
                                        command=lambda: self._processor.start("copy"),
@@ -208,10 +241,17 @@ class AppWindow(ctk.CTk):
                                        width=120)
         self._btn_move.pack(side=tk.RIGHT)
 
+        self._btn_dry_run = ctk.CTkButton(action_frame, text="Dry Run",
+                                          command=self._on_dry_run_click,
+                                          fg_color=BG_SURFACE, hover_color=BORDER,
+                                          text_color=FG, border_width=1, border_color=BORDER,
+                                          width=100)
+        self._btn_dry_run.pack(side=tk.RIGHT, padx=(0, 8))
+
         # ── Status bar ──
         status_frame = ctk.CTkFrame(self, fg_color=BG_SURFACE, corner_radius=0)
-        status_frame.grid(row=5, column=0, sticky=tk.EW + tk.S, padx=0, pady=(12, 0))
-        self.grid_rowconfigure(5, weight=1)
+        status_frame.grid(row=6, column=0, sticky=tk.EW + tk.S, padx=0, pady=(12, 0))
+        self.grid_rowconfigure(4, weight=1)
 
         self._status_var = tk.StringVar(value="Ready")
         ctk.CTkLabel(status_frame, textvariable=self._status_var,
@@ -240,12 +280,16 @@ class AppWindow(ctk.CTk):
             get_unknown=self._unknown_var.get,
             btn_move=self._btn_move,
             btn_copy=self._btn_copy,
+            btn_dry_run=self._btn_dry_run,
             progress_frame=self._progress_frame,
             progress_bar=self._progress_bar,
             progress_label=self._progress_label,
             timing_label=self._timing_label,
             breakdown_label=self._breakdown_label,
             current_file_label=self._current_file_label,
+            tree_frame=self._tree_frame,
+            tree_view=self._tree_view,
+            tree_summary_label=self._tree_summary_label,
             status_var=self._status_var,
         )
 
@@ -260,6 +304,13 @@ class AppWindow(ctk.CTk):
 
     def _on_input_changed(self) -> None:
         self._counter.schedule()
+
+    def _on_dry_run_click(self) -> None:
+        """Handle dry run button click - start or stop dry run."""
+        if self._processor._dry_run_active:
+            self._processor.stop_dry_run()
+        else:
+            self._processor.start_dry_run()
 
     # ── Config persistence ─────────────────────────────────────
 

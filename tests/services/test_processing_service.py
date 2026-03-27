@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -227,3 +228,100 @@ class TestProcessingServiceTiming:
         assert stats.total >= 0
         assert stats.per_file == []
         assert stats.slowest(5) == []
+
+
+class TestProcessingServiceDryRun:
+    def test_dry_run_skips_executor(self, pipeline, tmp_path):
+        """When dry_run is True, executor should not be called."""
+        service, finder, extractor, resolver, executor = pipeline
+        src = Path("/in/photo.jpg")
+        dest = Path("/out/2024/01/01/photo.jpg")
+
+        finder.find.return_value = [src]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = dest
+
+        config = make_config(tmp_path, dry_run=True)
+        results, _ = service.process(config)
+
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert results[0].destination == dest
+        executor.execute.assert_not_called()
+
+    def test_dry_run_unknown_status_when_no_date_and_handle_unknown(self, pipeline, tmp_path):
+        """When dry_run with no date and handle_unknown=True, status should be unknown."""
+        service, finder, extractor, resolver, executor = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {}  # No date
+        resolver.resolve.return_value = Path("/out/.unknown/photo.jpg")
+
+        config = make_config(tmp_path, dry_run=True, handle_unknown=True)
+        results, _ = service.process(config)
+
+        assert results[0].status == "unknown"
+        assert results[0].destination == Path("/out/.unknown/photo.jpg")
+        executor.execute.assert_not_called()
+
+    def test_dry_run_success_when_no_date_and_no_handle_unknown(self, pipeline, tmp_path):
+        """When dry_run with no date and handle_unknown=False, status should be success if dest exists."""
+        service, finder, extractor, resolver, executor = pipeline
+        finder.find.return_value = [Path("/in/photo.jpg")]
+        extractor.extract.return_value = {}  # No date
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+
+        config = make_config(tmp_path, dry_run=True, handle_unknown=False)
+        results, _ = service.process(config)
+
+        # With no date and handle_unknown=False, but dest is resolved, status is success
+        assert results[0].status == "success"
+        executor.execute.assert_not_called()
+
+
+class TestProcessingServiceCancelEvent:
+    def test_cancel_event_stops_processing(self, pipeline, tmp_path):
+        """When cancel_event is set, processing should stop."""
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/photo{i}.jpg") for i in range(10)]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+
+        cancel_event = threading.Event()
+        processed = []
+
+        def on_progress(result):
+            processed.append(result)
+            if len(processed) >= 3:
+                cancel_event.set()
+
+        config = make_config(tmp_path)
+        results, stats = service.process(config, on_progress=on_progress, cancel_event=cancel_event)
+
+        # Should have stopped after 3 files
+        assert len(results) == 3
+        assert stats.file_count == 3
+
+    def test_cancel_event_not_set_processes_all(self, pipeline, tmp_path):
+        """When cancel_event is provided but not set, all files should be processed."""
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/photo{i}.jpg") for i in range(5)]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+
+        cancel_event = threading.Event()
+        config = make_config(tmp_path)
+        results, _ = service.process(config, cancel_event=cancel_event)
+
+        assert len(results) == 5
+
+    def test_cancel_event_none_processes_all(self, pipeline, tmp_path):
+        """When cancel_event is None, all files should be processed."""
+        service, finder, extractor, resolver, _ = pipeline
+        finder.find.return_value = [Path(f"/in/photo{i}.jpg") for i in range(5)]
+        extractor.extract.return_value = {"date": datetime(2024, 1, 1)}
+        resolver.resolve.return_value = Path("/out/photo.jpg")
+
+        config = make_config(tmp_path)
+        results, _ = service.process(config, cancel_event=None)
+
+        assert len(results) == 5

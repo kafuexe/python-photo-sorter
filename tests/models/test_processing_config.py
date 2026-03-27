@@ -17,6 +17,7 @@ class TestProcessingConfigDefaults:
         ("selected_extensions", []),
         ("handle_unknown", True),
         ("unknown_folder_name", ".unknown"),
+        ("dry_run", False),
     ])
     def test_default_values(self, default_config, attr, expected):
         assert getattr(default_config, attr) == expected
@@ -49,6 +50,10 @@ class TestProcessingConfigSerialization:
     def test_to_dict_excludes_action(self):
         d = ProcessingConfig(input_dir="a", output_dir="b", action="move").to_dict()
         assert "action" not in d
+
+    def test_to_dict_excludes_dry_run(self):
+        d = ProcessingConfig(input_dir="a", output_dir="b", dry_run=True).to_dict()
+        assert "dry_run" not in d
 
     @pytest.mark.parametrize("overrides, expected_attr, expected_val", [
         ({"date_format": "%Y"}, "date_format", "%Y"),
@@ -104,3 +109,13 @@ class TestProcessingConfigEdgeCases:
     def test_path_objects_stay_as_paths(self):
         c = ProcessingConfig(input_dir=Path("/a"), output_dir=Path("/b"))
         assert c.input_dir == Path("/a")
+
+    def test_dry_run_can_be_set(self):
+        c = ProcessingConfig(input_dir="a", output_dir="b", dry_run=True)
+        assert c.dry_run is True
+
+    def test_dry_run_not_restored_from_dict(self):
+        """dry_run should not be persisted, so from_dict should always return False."""
+        # Even if we somehow pass dry_run in the dict, it should be ignored
+        c = ProcessingConfig.from_dict({"input_dir": "/a", "output_dir": "/b", "dry_run": True})
+        assert c.dry_run is False

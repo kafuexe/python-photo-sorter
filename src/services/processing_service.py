@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Callable
@@ -73,7 +74,8 @@ class ProcessingService:
 
     def process(self, config: ProcessingConfig,
                 on_progress: Callable[[FileResult], None] | None = None,
-                on_total: Callable[[int], None] | None = None) -> tuple[list[FileResult], TimingStats]:
+                on_total: Callable[[int], None] | None = None,
+                cancel_event: threading.Event | None = None) -> tuple[list[FileResult], TimingStats]:
         stats = TimingStats()
         results: list[FileResult] = []
 
@@ -87,6 +89,10 @@ class ProcessingService:
             on_total(len(files))
 
         for file_path in files:
+            # Check for cancellation before processing each file
+            if cancel_event is not None and cancel_event.is_set():
+                break
+
             result = FileResult(source=file_path)
 
             try:
@@ -102,6 +108,9 @@ class ProcessingService:
                 t = time.perf_counter()
                 if dest is None:
                     result.status = "skipped"
+                elif config.dry_run:
+                    result.destination = dest
+                    result.status = "unknown" if (not metadata.get("date") and config.handle_unknown) else "success"
                 elif not self._file_executor.execute(file_path, dest, config.action):
                     result.status = "skipped"
                 elif not metadata.get("date") and config.handle_unknown:
@@ -128,7 +137,7 @@ class ProcessingService:
                 on_progress(result)
 
         stats.total = time.perf_counter() - t0
-        stats.file_count = len(files)
+        stats.file_count = len(results)
         logger.info("Timing:\n%s", stats.summary())
 
         return results, stats
